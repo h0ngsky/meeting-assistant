@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会议助手</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- 登录页 -->
+  <div id="auth-page" class="auth-page">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect width="48" height="48" rx="12" fill="#0089FF"/>
+          <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
+          <circle cx="34" cy="30" r="6" fill="#FFD666"/>
+        </svg>
+        <h1>会议助手</h1>
+        <p>智能会议室预约 · 日程协同管理</p>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">登录</button>
+        <button class="auth-tab" data-tab="register">注册</button>
+      </div>
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">登 录</button>
+        <p class="auth-hint">默认管理员：admin / admin123</p>
+      </form>
+      <form id="register-form" class="auth-form hidden">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" id="reg-username" placeholder="至少 3 个字符" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label>显示名称</label>
+          <input type="text" id="reg-display" placeholder="您的姓名">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="reg-password" placeholder="至少 6 个字符" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">注 册</button>
+      </form>
+      <div id="auth-error" class="error-msg hidden"></div>
+    </div>
+  </div>
+
+  <!-- 主应用 -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+          <rect width="48" height="48" rx="12" fill="#0089FF"/>
+          <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
+        </svg>
+        <span class="topbar-title">会议助手</span>
+      </div>
+      <div class="topbar-right">
+        <span id="user-badge" class="user-badge"></span>
+        <button id="logout-btn" class="btn btn-ghost btn-sm">退出</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="sidebar">
+        <button class="nav-item active" data-view="rooms">
+          <span class="nav-icon">🏢</span> 会议室预约
+        </button>
+        <button class="nav-item" data-view="my-meetings">
+          <span class="nav-icon">📋</span> 我的会议
+        </button>
+        <button class="nav-item" data-view="schedules">
+          <span class="nav-icon">📅</span> 成员日程
+        </button>
+        <button class="nav-item" data-view="new-meeting">
+          <span class="nav-icon">➕</span> 发起会议
+        </button>
+        <button class="nav-item" data-view="profile">
+          <span class="nav-icon">⚙️</span> 个人设置
+        </button>
+      </nav>
+
+      <main class="main-content">
+        <!-- 会议室预约 -->
+        <section id="view-rooms" class="view">
+          <div class="view-header">
+            <h2>会议室预约</h2>
+            <div class="date-picker-wrap">
+              <button id="prev-day" class="btn btn-ghost btn-sm">◀</button>
+              <input type="date" id="room-date" class="date-input">
+              <button id="next-day" class="btn btn-ghost btn-sm">▶</button>
+              <button id="today-btn" class="btn btn-ghost btn-sm">今天</button>
+            </div>
+          </div>
+          <div class="lunch-notice">
+            ⚠️ 12:30 - 14:00 为午休禁约时段（管理员可预约）
+          </div>
+          <div id="room-grid" class="room-grid"></div>
+        </section>
+
+        <!-- 我的会议 -->
+        <section id="view-my-meetings" class="view hidden">
+          <div class="view-header">
+            <h2>我的会议</h2>
+          </div>
+          <div id="my-meetings-list" class="meetings-list"></div>
+        </section>
+
+        <!-- 成员日程 -->
+        <section id="view-schedules" class="view hidden">
+          <div class="view-header">
+            <h2>成员日程</h2>
+            <div class="schedule-controls">
+              <select id="schedule-user" class="select-input"></select>
+              <input type="date" id="schedule-date" class="date-input">
+            </div>
+          </div>
+          <div id="schedule-timeline" class="schedule-timeline"></div>
+        </section>
+
+        <!-- 发起会议 -->
+        <section id="view-new-meeting" class="view hidden">
+          <div class="view-header">
+            <h2>发起会议</h2>
+          </div>
+          <form id="meeting-form" class="meeting-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label>会议主题 *</label>
+                <input type="text" id="m-title" placeholder="请输入会议主题" required>
+              </div>
+            </div>
+            <div class="form-row cols-2">
+              <div class="form-group">
+                <label>日期 *</label>
+                <input type="date" id="m-date" required>
+              </div>
+              <div class="form-group">
+                <label>会议室 *</label>
+                <select id="m-room" class="select-input" required></select>
+              </div>
+            </div>
+            <div class="form-row cols-2">
+              <div class="form-group">
+                <label>开始时间 *</label>
+                <input type="time" id="m-start" value="09:00" required>
+              </div>
+              <div class="form-group">
+                <label>结束时间 *</label>
+                <input type="time" id="m-end" value="10:00" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>邀请成员</label>
+              <div id="invitee-list" class="invitee-list"></div>
+              <p class="form-hint">参会人数将根据邀请成员自动计算（含发起人）</p>
+            </div>
+            <div class="form-group">
+              <label>会议说明</label>
+              <textarea id="m-desc" rows="3" placeholder="可选"></textarea>
+            </div>
+            <div id="conflict-result" class="conflict-result hidden"></div>
+            <div class="form-actions">
+              <button type="button" id="check-conflict-btn" class="btn btn-secondary">检测冲突</button>
+              <button type="submit" class="btn btn-primary">创建会议</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- 个人设置 -->
+        <section id="view-profile" class="view hidden">
+          <div class="view-header">
+            <h2>个人设置</h2>
+          </div>
+          <div class="profile-panels">
+            <form id="profile-form" class="meeting-form">
+              <h3 class="panel-title">修改姓名</h3>
+              <div class="form-group">
+                <label>显示名称</label>
+                <input type="text" id="profile-name" placeholder="您的姓名">
+              </div>
+              <button type="submit" class="btn btn-primary">保存姓名</button>
+              <div id="profile-msg" class="profile-msg hidden"></div>
+            </form>
+            <form id="password-form" class="meeting-form">
+              <h3 class="panel-title">修改密码</h3>
+              <div class="form-group">
+                <label>原密码</label>
+                <input type="password" id="old-password" autocomplete="current-password">
+              </div>
+              <div class="form-group">
+                <label>新密码</label>
+                <input type="password" id="new-password" autocomplete="new-password" placeholder="至少 6 个字符">
+              </div>
+              <div class="form-group">
+                <label>确认新密码</label>
+                <input type="password" id="confirm-password" autocomplete="new-password">
+              </div>
+              <button type="submit" class="btn btn-primary">修改密码</button>
+              <div id="password-msg" class="profile-msg hidden"></div>
+            </form>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- 会议详情弹窗 -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3 id="modal-title">会议详情</h3>
+        <button id="modal-close" class="modal-close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-actions" class="modal-actions"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

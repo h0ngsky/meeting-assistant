@@ -1,0 +1,17 @@
+{
+  "name": "meeting-assistant",
+  "version": "1.0.0",
+  "description": "钉钉风格会议助手 - 会议室预约与日程管理",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/e2e-flow.test.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
