@@ -108,6 +108,9 @@
         <button class="nav-item nav-admin hidden" data-view="members">
           <span class="nav-icon">👥</span> 成员管理
         </button>
+        <button class="nav-item nav-admin hidden" data-view="rooms-admin">
+          <span class="nav-icon">🏠</span> 会议室管理
+        </button>
       </nav>
 
       <main class="main-content">
@@ -307,6 +310,47 @@
                 </tr>
               </thead>
               <tbody id="members-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- 会议室管理（管理员） -->
+        <section id="view-rooms-admin" class="view hidden">
+          <div class="view-header">
+            <h2>会议室管理</h2>
+          </div>
+          <form id="admin-room-form" class="meeting-form admin-user-form">
+            <h3 class="panel-title">添加会议室</h3>
+            <div class="form-row cols-2">
+              <div class="form-group">
+                <label>编号 *</label>
+                <input type="text" id="admin-room-id" placeholder="如 206" required>
+              </div>
+              <div class="form-group">
+                <label>名称 *</label>
+                <input type="text" id="admin-room-name" placeholder="如 会议室 206" required>
+              </div>
+            </div>
+            <div class="form-row cols-2">
+              <div class="form-group">
+                <label>最大容量 *</label>
+                <input type="number" id="admin-room-capacity" min="1" placeholder="人数" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary">添加会议室</button>
+            <div id="admin-room-msg" class="profile-msg hidden"></div>
+          </form>
+          <div class="members-table-wrap">
+            <table class="members-table">
+              <thead>
+                <tr>
+                  <th>编号</th>
+                  <th>名称</th>
+                  <th>容量</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="rooms-table-body"></tbody>
             </table>
           </div>
         </section>

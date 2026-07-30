@@ -132,6 +132,7 @@ function switchView(view) {
   if (view === 'schedules') loadSchedule();
   if (view === 'profile') loadProfile();
   if (view === 'members') loadMembersAdmin();
+  if (view === 'rooms-admin') loadRoomsAdmin();
 }
 
 // ── Date helpers ────────────────────────────────────────────────────────────
@@ -799,6 +800,69 @@ async function handleAdminCreateUser(e) {
   }
 }
 
+async function reloadRooms() {
+  rooms = await api('/rooms');
+  populateRoomSelect();
+}
+
+async function loadRoomsAdmin() {
+  const list = await api('/admin/rooms');
+  const tbody = document.getElementById('rooms-table-body');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-cell">暂无会议室</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.id)}</td>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${r.capacity} 人</td>
+      <td><button class="btn btn-danger btn-sm" data-delete-room="${escapeHtml(r.id)}">删除</button></td>
+    </tr>`).join('');
+
+  tbody.querySelectorAll('[data-delete-room]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const roomId = btn.dataset.deleteRoom;
+      const room = list.find((r) => r.id === roomId);
+      if (!confirm(`确定删除「${room?.name || roomId}」？`)) return;
+      try {
+        await api(`/admin/rooms/${encodeURIComponent(roomId)}`, { method: 'DELETE' });
+        await reloadRooms();
+        await loadRoomsAdmin();
+        loadRoomGrid();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+function showAdminRoomMsg(msg, type) {
+  const el = document.getElementById('admin-room-msg');
+  el.textContent = msg;
+  el.className = `profile-msg ${type}`;
+}
+
+async function handleAdminCreateRoom(e) {
+  e.preventDefault();
+  const id = document.getElementById('admin-room-id').value.trim();
+  const name = document.getElementById('admin-room-name').value.trim();
+  const capacity = document.getElementById('admin-room-capacity').value;
+  try {
+    await api('/admin/rooms', {
+      method: 'POST',
+      body: JSON.stringify({ id, name, capacity: Number(capacity) }),
+    });
+    document.getElementById('admin-room-form').reset();
+    await reloadRooms();
+    await loadRoomsAdmin();
+    loadRoomGrid();
+    showAdminRoomMsg('会议室添加成功', 'success');
+  } catch (err) {
+    showAdminRoomMsg(err.message, 'error');
+  }
+}
+
 // ── Profile ─────────────────────────────────────────────────────────────────
 
 function loadProfile() {
@@ -1170,6 +1234,7 @@ document.getElementById('meeting-form').addEventListener('submit', (e) => create
 document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
 document.getElementById('password-form').addEventListener('submit', handlePasswordUpdate);
 document.getElementById('admin-user-form').addEventListener('submit', handleAdminCreateUser);
+document.getElementById('admin-room-form').addEventListener('submit', handleAdminCreateRoom);
 
 document.getElementById('modal-close').addEventListener('click', () => {
   document.getElementById('modal-overlay').classList.add('hidden');

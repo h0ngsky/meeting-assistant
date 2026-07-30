@@ -10,11 +10,14 @@ const {
   updateUserProfile,
   updateUserPassword,
   deleteUser,
+  getRoomsList,
+  findRoomById,
+  createRoom,
+  deleteRoom,
   publicUser,
   adminUserView,
 } = require('./lib/db');
 const { authMiddleware, login, requireAdmin } = require('./lib/auth');
-const { ROOMS } = require('./lib/rooms');
 const { checkMeetingConflicts } = require('./lib/conflicts');
 
 const app = express();
@@ -88,9 +91,9 @@ app.put('/api/auth/password', authMiddleware, asyncHandler(async (req, res) => {
 
 // ── Rooms ─────────────────────────────────────────────────────────────────
 
-app.get('/api/rooms', authMiddleware, (_req, res) => {
-  res.json(ROOMS);
-});
+app.get('/api/rooms', authMiddleware, asyncHandler(async (_req, res) => {
+  res.json(await getRoomsList());
+}));
 
 // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -134,6 +137,25 @@ app.delete('/api/admin/users/:id', authMiddleware, requireAdmin, asyncHandler(as
   res.json({ ok: true });
 }));
 
+// ── Admin: room management ──────────────────────────────────────────────────
+
+app.get('/api/admin/rooms', authMiddleware, requireAdmin, asyncHandler(async (_req, res) => {
+  res.json(await getRoomsList());
+}));
+
+app.post('/api/admin/rooms', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
+  const { id, name, capacity } = req.body || {};
+  const result = await createRoom({ id, name, capacity });
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.room);
+}));
+
+app.delete('/api/admin/rooms/:id', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
+  const result = await deleteRoom(req.params.id);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
+}));
+
 // ── Meetings ────────────────────────────────────────────────────────────────
 
 async function enrichMeeting(m) {
@@ -141,7 +163,7 @@ async function enrichMeeting(m) {
   const invitees = await Promise.all(
     (m.inviteeIds || []).map((id) => findUserById(id)),
   );
-  const room = ROOMS.find((r) => r.id === m.roomId);
+  const room = await findRoomById(m.roomId);
   return {
     ...m,
     organizer: organizer ? publicUser(organizer) : null,
@@ -201,32 +223,34 @@ app.get('/api/meetings/:id/participant-schedules', authMiddleware, asyncHandler(
     const user = await findUserById(uid);
     if (!user) return null;
 
-    const dayMeetings = meetings
-      .filter(
-        (item) =>
-          item.status !== 'cancelled' &&
-          (item.organizerId === uid || (item.inviteeIds || []).includes(uid)) &&
-          new Date(item.startTime) >= dayStart &&
-          new Date(item.startTime) <= dayEnd,
-      )
-      .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-      .map((item) => {
-        const s = new Date(item.startTime);
-        const e = new Date(item.endTime);
-        const isCurrent = item.id === m.id;
-        const overlapsCurrent = !isCurrent && s < meetingEnd && e > meetingStart;
-        return {
-          id: item.id,
-          title: item.title,
-          startTime: item.startTime,
-          endTime: item.endTime,
-          roomId: item.roomId,
-          room: ROOMS.find((r) => r.id === item.roomId) || null,
-          role: item.organizerId === uid ? 'organizer' : 'invitee',
-          isCurrent,
-          overlapsCurrent,
-        };
-      });
+    const dayMeetings = await Promise.all(
+      meetings
+        .filter(
+          (item) =>
+            item.status !== 'cancelled' &&
+            (item.organizerId === uid || (item.inviteeIds || []).includes(uid)) &&
+            new Date(item.startTime) >= dayStart &&
+            new Date(item.startTime) <= dayEnd,
+        )
+        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+        .map(async (item) => {
+          const s = new Date(item.startTime);
+          const e = new Date(item.endTime);
+          const isCurrent = item.id === m.id;
+          const overlapsCurrent = !isCurrent && s < meetingEnd && e > meetingStart;
+          return {
+            id: item.id,
+            title: item.title,
+            startTime: item.startTime,
+            endTime: item.endTime,
+            roomId: item.roomId,
+            room: (await findRoomById(item.roomId)) || null,
+            role: item.organizerId === uid ? 'organizer' : 'invitee',
+            isCurrent,
+            overlapsCurrent,
+          };
+        }),
+    );
 
     return {
       user: publicUser(user),
