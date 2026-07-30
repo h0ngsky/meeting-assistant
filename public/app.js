@@ -595,13 +595,15 @@ function renderCalendarDayDetail(dateStr, byDate) {
     item.addEventListener('click', () => showMeetingDetail(Number(item.dataset.id)));
   });
 
-  // 滚动到第一个会议或 8:00
+  // 默认滚到 8:00 工作时段；有会议时滚到第一场附近
   const wrap = container.querySelector('.day-timeline-wrap');
   if (wrap) {
     const firstBlock = container.querySelector('.day-meeting-block');
-    wrap.scrollTop = firstBlock
-      ? Math.max(Number(firstBlock.style.top.replace('px', '')) - 60, 0)
-      : 8 * DAY_TIMELINE_HOUR_HEIGHT;
+    if (firstBlock) {
+      wrap.scrollTop = Math.max(Number(firstBlock.style.top.replace('px', '')) - 80, 0);
+    } else {
+      wrap.scrollTop = 8 * DAY_TIMELINE_HOUR_HEIGHT;
+    }
   }
 }
 

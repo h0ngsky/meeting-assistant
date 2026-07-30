@@ -1115,7 +1115,8 @@ body {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   padding: 20px;
-  max-width: 720px;
+  order: 2;
+  max-width: none;
 }
 
 .calendar-weekdays {
@@ -1227,6 +1228,7 @@ body {
   box-shadow: var(--shadow-sm);
   padding: 20px;
   flex: 1;
+  order: 1;
 }
 
 .cal-day-header {
@@ -1265,7 +1267,7 @@ body {
 
 /* 24-hour day timeline */
 .day-timeline-wrap {
-  max-height: 520px;
+  max-height: 560px;
   overflow-y: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1274,6 +1276,7 @@ body {
 
 .day-timeline-grid {
   position: relative;
+  min-height: 1152px;
 }
 
 .day-hour-row {
@@ -1424,7 +1427,8 @@ body {
   .room-grid { grid-template-columns: 1fr; }
   .main-content { padding: 20px 16px; }
   .topbar { padding: 0 16px; }
-  .calendar-layout { grid-template-columns: 1fr; }
-  .calendar-day-panel { position: static; max-height: none; }
+  .calendar-layout { gap: 16px; }
+  .calendar-panel { max-width: none; }
+  .day-timeline-wrap { max-height: 400px; }
   .cal-day { min-height: 56px; }
 }
