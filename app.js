@@ -9,9 +9,11 @@ const {
   findUserById,
   updateUserProfile,
   updateUserPassword,
+  deleteUser,
   publicUser,
+  adminUserView,
 } = require('./lib/db');
-const { authMiddleware, login } = require('./lib/auth');
+const { authMiddleware, login, requireAdmin } = require('./lib/auth');
 const { ROOMS } = require('./lib/rooms');
 const { checkMeetingConflicts } = require('./lib/conflicts');
 
@@ -95,6 +97,41 @@ app.get('/api/rooms', authMiddleware, (_req, res) => {
 app.get('/api/users', authMiddleware, asyncHandler(async (_req, res) => {
   const { users } = await getUsers();
   res.json(users.map(publicUser));
+}));
+
+// ── Admin: member management ────────────────────────────────────────────────
+
+app.get('/api/admin/users', authMiddleware, requireAdmin, asyncHandler(async (_req, res) => {
+  const { users } = await getUsers();
+  const sorted = [...users].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(sorted.map(adminUserView));
+}));
+
+app.post('/api/admin/users', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
+  const { username, password, displayName, role } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: '用户名和密码不能为空' });
+  }
+  if (username.length < 3) {
+    return res.status(400).json({ error: '用户名至少 3 个字符' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: '密码至少 6 个字符' });
+  }
+  const userRole = role === 'admin' ? 'admin' : 'member';
+  const result = await createUser({ username, password, displayName, role: userRole });
+  if (result.error) return res.status(409).json({ error: result.error });
+  res.status(201).json(adminUserView(result.user));
+}));
+
+app.delete('/api/admin/users/:id', authMiddleware, requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: '不能删除当前登录账号' });
+  }
+  const result = await deleteUser(userId);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json({ ok: true });
 }));
 
 // ── Meetings ────────────────────────────────────────────────────────────────

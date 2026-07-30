@@ -41,6 +41,9 @@ function updateUserBadge() {
   if (!currentUser) return;
   badge.textContent = `${currentUser.displayName} (${currentUser.role === 'admin' ? '管理员' : '成员'})`;
   badge.className = `user-badge${currentUser.role === 'admin' ? ' admin' : ''}`;
+  document.querySelectorAll('.nav-admin').forEach((el) => {
+    el.classList.toggle('hidden', currentUser.role !== 'admin');
+  });
 }
 
 async function handleLogin(e) {
@@ -121,6 +124,7 @@ function switchView(view) {
   if (view === 'my-meetings') loadMyMeetings();
   if (view === 'schedules') loadSchedule();
   if (view === 'profile') loadProfile();
+  if (view === 'members') loadMembersAdmin();
 }
 
 // ── Date helpers ────────────────────────────────────────────────────────────
@@ -305,6 +309,84 @@ function populateUserSelect() {
   ).join('');
   if (users.length > 0 && currentUser) {
     sel.value = currentUser.id;
+  }
+}
+
+// ── Admin: member management ────────────────────────────────────────────────
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${fmtDate(d)} ${fmtTime(d)}`;
+}
+
+function showAdminMsg(msg, type) {
+  const el = document.getElementById('admin-user-msg');
+  el.textContent = msg;
+  el.className = `profile-msg ${type}`;
+}
+
+async function loadMembersAdmin() {
+  const members = await api('/admin/users');
+  const tbody = document.getElementById('members-table-body');
+  if (members.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">暂无成员</td></tr>';
+    return;
+  }
+  tbody.innerHTML = members.map((m) => {
+    const isSelf = m.id === currentUser.id;
+    const roleLabel = m.role === 'admin' ? '管理员' : '成员';
+    const deleteBtn = isSelf
+      ? '<span class="text-muted">当前账号</span>'
+      : `<button class="btn btn-danger btn-sm" data-delete-id="${m.id}">删除</button>`;
+    return `
+      <tr>
+        <td>${escapeHtml(m.username)}</td>
+        <td>${escapeHtml(m.displayName)}</td>
+        <td><code class="password-cell">${escapeHtml(m.password)}</code></td>
+        <td><span class="role-tag ${m.role}">${roleLabel}</span></td>
+        <td>${fmtDateTime(m.createdAt)}</td>
+        <td>${deleteBtn}</td>
+      </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('[data-delete-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.deleteId);
+      const member = members.find((m) => m.id === id);
+      if (!confirm(`确定删除成员「${member?.displayName || member?.username}」？`)) return;
+      try {
+        await api(`/admin/users/${id}`, { method: 'DELETE' });
+        users = await api('/users');
+        populateUserSelect();
+        renderInviteeList();
+        await loadMembersAdmin();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
+async function handleAdminCreateUser(e) {
+  e.preventDefault();
+  const username = document.getElementById('admin-username').value.trim();
+  const displayName = document.getElementById('admin-display').value.trim();
+  const password = document.getElementById('admin-password').value;
+  const role = document.getElementById('admin-role').value;
+  try {
+    await api('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, displayName, role }),
+    });
+    document.getElementById('admin-user-form').reset();
+    users = await api('/users');
+    populateUserSelect();
+    renderInviteeList();
+    await loadMembersAdmin();
+    showAdminMsg('成员添加成功', 'success');
+  } catch (err) {
+    showAdminMsg(err.message, 'error');
   }
 }
 
@@ -652,6 +734,7 @@ document.getElementById('check-conflict-btn').addEventListener('click', checkCon
 document.getElementById('meeting-form').addEventListener('submit', (e) => createMeeting(e, false));
 document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
 document.getElementById('password-form').addEventListener('submit', handlePasswordUpdate);
+document.getElementById('admin-user-form').addEventListener('submit', handleAdminCreateUser);
 
 document.getElementById('modal-close').addEventListener('click', () => {
   document.getElementById('modal-overlay').classList.add('hidden');
