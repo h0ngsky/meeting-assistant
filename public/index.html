@@ -4,53 +4,69 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>会议助手</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <!-- 登录页 -->
   <div id="auth-page" class="auth-page">
-    <div class="auth-card">
-      <div class="auth-logo">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <rect width="48" height="48" rx="12" fill="#0089FF"/>
-          <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
-          <circle cx="34" cy="30" r="6" fill="#FFD666"/>
-        </svg>
-        <h1>会议助手</h1>
-        <p>智能会议室预约 · 日程协同管理</p>
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <div class="auth-brand-content">
+          <div class="brand-logo">
+            <svg width="56" height="56" viewBox="0 0 48 48" fill="none">
+              <rect width="48" height="48" rx="12" fill="white" fill-opacity="0.15"/>
+              <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
+              <circle cx="34" cy="30" r="6" fill="#FFD666"/>
+            </svg>
+          </div>
+          <h1>会议助手</h1>
+          <p>智能会议室预约 · 日程协同管理</p>
+          <ul class="auth-features">
+            <li>实时查看会议室空闲时段</li>
+            <li>自动检测成员日程冲突</li>
+            <li>多设备云端数据同步</li>
+          </ul>
+        </div>
       </div>
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">登录</button>
-        <button class="auth-tab" data-tab="register">注册</button>
+      <div class="auth-card">
+        <div class="auth-card-inner">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">登录</button>
+            <button class="auth-tab" data-tab="register">注册</button>
+          </div>
+          <form id="login-form" class="auth-form">
+            <div class="form-group">
+              <label>用户名</label>
+              <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label>密码</label>
+              <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">登 录</button>
+            <p class="auth-hint">默认管理员：admin / admin123</p>
+          </form>
+          <form id="register-form" class="auth-form hidden">
+            <div class="form-group">
+              <label>用户名</label>
+              <input type="text" id="reg-username" placeholder="至少 3 个字符" autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label>显示名称</label>
+              <input type="text" id="reg-display" placeholder="您的姓名">
+            </div>
+            <div class="form-group">
+              <label>密码</label>
+              <input type="password" id="reg-password" placeholder="至少 6 个字符" autocomplete="new-password">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">注 册</button>
+          </form>
+          <div id="auth-error" class="error-msg hidden"></div>
+        </div>
       </div>
-      <form id="login-form" class="auth-form">
-        <div class="form-group">
-          <label>用户名</label>
-          <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">登 录</button>
-        <p class="auth-hint">默认管理员：admin / admin123</p>
-      </form>
-      <form id="register-form" class="auth-form hidden">
-        <div class="form-group">
-          <label>用户名</label>
-          <input type="text" id="reg-username" placeholder="至少 3 个字符" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label>显示名称</label>
-          <input type="text" id="reg-display" placeholder="您的姓名">
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input type="password" id="reg-password" placeholder="至少 6 个字符" autocomplete="new-password">
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">注 册</button>
-      </form>
-      <div id="auth-error" class="error-msg hidden"></div>
     </div>
   </div>
 
@@ -72,6 +88,7 @@
 
     <div class="layout">
       <nav class="sidebar">
+        <div class="nav-section-label">工作台</div>
         <button class="nav-item active" data-view="rooms">
           <span class="nav-icon">🏢</span> 会议室预约
         </button>
@@ -84,6 +101,7 @@
         <button class="nav-item" data-view="new-meeting">
           <span class="nav-icon">➕</span> 发起会议
         </button>
+        <div class="nav-section-label">账户</div>
         <button class="nav-item" data-view="profile">
           <span class="nav-icon">⚙️</span> 个人设置
         </button>
