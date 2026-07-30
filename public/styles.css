@@ -1077,6 +1077,216 @@ body {
   font-size: 13px;
 }
 
+/* ── My calendar ───────────────────────────────────────────── */
+
+.calendar-nav {
+  gap: 10px;
+}
+
+.cal-month-label {
+  font-size: 16px;
+  font-weight: 700;
+  min-width: 120px;
+  text-align: center;
+  color: var(--text);
+}
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 24px;
+  align-items: start;
+}
+
+.calendar-panel {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.calendar-weekdays span {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.cal-day {
+  position: relative;
+  min-height: 72px;
+  padding: 8px 6px 6px;
+  border: 1.5px solid transparent;
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: left;
+  font-family: inherit;
+}
+
+.cal-day:hover {
+  border-color: rgba(37, 99, 235, 0.25);
+  background: var(--primary-light);
+}
+
+.cal-day.other-month {
+  opacity: 0.45;
+}
+
+.cal-day.today .cal-day-num {
+  background: var(--primary);
+  color: white;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-day.selected {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.cal-day.has-events {
+  background: #F8FAFC;
+}
+
+.cal-day-num {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.cal-day-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--primary);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.cal-day-dots {
+  display: flex;
+  gap: 3px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.cal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.cal-dot.dot-organizer { background: var(--primary); }
+.cal-dot.dot-invitee { background: var(--success); }
+
+.calendar-day-panel {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+  position: sticky;
+  top: 88px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.cal-day-header {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cal-day-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.cal-day-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cal-day-meetings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cal-meeting-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cal-meeting-item:hover {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: var(--primary-light);
+  transform: translateX(2px);
+}
+
+.cal-meeting-time {
+  flex-shrink: 0;
+  width: 72px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.4;
+}
+
+.cal-meeting-time span {
+  display: block;
+  color: var(--text-secondary);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.cal-meeting-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.cal-meeting-body p {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* ── Responsive ───────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -1101,4 +1311,7 @@ body {
   .room-grid { grid-template-columns: 1fr; }
   .main-content { padding: 20px 16px; }
   .topbar { padding: 0 16px; }
+  .calendar-layout { grid-template-columns: 1fr; }
+  .calendar-day-panel { position: static; max-height: none; }
+  .cal-day { min-height: 56px; }
 }

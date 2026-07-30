@@ -128,7 +128,7 @@ function switchView(view) {
   document.getElementById(`view-${view}`).classList.remove('hidden');
 
   if (view === 'rooms') loadRoomGrid();
-  if (view === 'my-meetings') loadMyMeetings();
+  if (view === 'my-calendar') loadMyCalendar();
   if (view === 'schedules') loadSchedule();
   if (view === 'profile') loadProfile();
   if (view === 'members') loadMembersAdmin();
@@ -467,39 +467,151 @@ function buildRoomCard(room, meetings, date) {
   return card;
 }
 
-// ── My meetings ─────────────────────────────────────────────────────────────
+function addMonths(year, month, delta) {
+  const d = new Date(year, month + delta, 1);
+  return { year: d.getFullYear(), month: d.getMonth() };
+}
 
-async function loadMyMeetings() {
-  const meetings = await api('/meetings/my');
-  const list = document.getElementById('my-meetings-list');
+function formatCalDayTitle(dateStr) {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 周${weekdays[d.getDay()]}`;
+}
 
-  if (meetings.length === 0) {
-    list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无会议，去发起一个吧</p></div>';
+function getCalendarDays(year, month) {
+  const first = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  let startPad = first.getDay() - 1;
+  if (startPad < 0) startPad = 6;
+
+  const days = [];
+  for (let i = startPad - 1; i >= 0; i--) {
+    const d = new Date(year, month, -i);
+    days.push({ dateStr: fmtDate(d), dayNum: d.getDate(), otherMonth: true });
+  }
+  for (let d = 1; d <= lastDay; d++) {
+    days.push({ dateStr: fmtDate(new Date(year, month, d)), dayNum: d, otherMonth: false });
+  }
+  let nextDay = 1;
+  while (days.length < 42) {
+    const d = new Date(year, month + 1, nextDay++);
+    days.push({ dateStr: fmtDate(d), dayNum: d.getDate(), otherMonth: true });
+  }
+  return days;
+}
+
+function groupMeetingsByDate(meetings) {
+  const map = {};
+  meetings.forEach((m) => {
+    const key = fmtDate(new Date(m.startTime));
+    if (!map[key]) map[key] = [];
+    map[key].push(m);
+  });
+  Object.values(map).forEach((list) => {
+    list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  });
+  return map;
+}
+
+let calendarState = {
+  year: new Date().getFullYear(),
+  month: new Date().getMonth(),
+  selectedDate: todayStr(),
+  meetings: [],
+};
+
+function renderCalendarDayDetail(dateStr, byDate) {
+  const titleEl = document.getElementById('cal-day-title');
+  const subEl = document.getElementById('cal-day-subtitle');
+  const container = document.getElementById('cal-day-meetings');
+  const dayMeetings = byDate[dateStr] || [];
+
+  titleEl.textContent = formatCalDayTitle(dateStr);
+  subEl.textContent = dayMeetings.length
+    ? `共 ${dayMeetings.length} 场会议`
+    : '当天暂无会议安排';
+
+  if (dayMeetings.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>这一天没有会议</p></div>';
     return;
   }
 
-  meetings.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
-  list.innerHTML = meetings.map((m) => {
+  container.innerHTML = dayMeetings.map((m) => {
     const isOrganizer = m.organizerId === currentUser.id;
-    const tag = isOrganizer
-      ? '<span class="meeting-tag organizer">我发起的</span>'
-      : '<span class="meeting-tag invitee">受邀参加</span>';
+    const tag = isOrganizer ? '我发起的' : '受邀参加';
+    const tagCls = isOrganizer ? 'organizer' : 'invitee';
     return `
-      <div class="meeting-card" data-id="${m.id}">
-        <div class="meeting-card-info">
-          <h4>${tag}${escapeHtml(m.title)}</h4>
-          <p>${m.room?.name || m.roomId} · ${fmtDate(new Date(m.startTime))} ${fmtTime(m.startTime)}-${fmtTime(m.endTime)}</p>
-          <p>发起人：${m.organizer?.displayName || '未知'} · 参会 ${m.attendeeCount} 人</p>
+      <div class="cal-meeting-item" data-id="${m.id}">
+        <div class="cal-meeting-time">${fmtTime(m.startTime)}<span>–</span>${fmtTime(m.endTime)}</div>
+        <div class="cal-meeting-body">
+          <div class="cal-meeting-title">
+            <span class="meeting-tag ${tagCls}">${tag}</span>
+            ${escapeHtml(m.title)}
+          </div>
+          <p>${escapeHtml(m.room?.name || m.roomId)} · 发起人：${escapeHtml(m.organizer?.displayName || '未知')}</p>
         </div>
       </div>`;
   }).join('');
 
-  list.querySelectorAll('.meeting-card').forEach((card) => {
-    card.addEventListener('click', () => showMeetingDetail(Number(card.dataset.id)));
+  container.querySelectorAll('.cal-meeting-item').forEach((item) => {
+    item.addEventListener('click', () => showMeetingDetail(Number(item.dataset.id)));
   });
 }
 
-// ── Schedule ────────────────────────────────────────────────────────────────
+function renderCalendarGrid() {
+  const { year, month, selectedDate, meetings } = calendarState;
+  document.getElementById('cal-month-label').textContent = `${year}年${month + 1}月`;
+
+  const byDate = groupMeetingsByDate(meetings);
+  const today = todayStr();
+  const days = getCalendarDays(year, month);
+  const grid = document.getElementById('calendar-grid');
+
+  grid.innerHTML = days.map((day) => {
+    const count = (byDate[day.dateStr] || []).length;
+    const classes = [
+      'cal-day',
+      day.otherMonth ? 'other-month' : '',
+      day.dateStr === today ? 'today' : '',
+      day.dateStr === selectedDate ? 'selected' : '',
+      count ? 'has-events' : '',
+    ].filter(Boolean).join(' ');
+
+    const dots = (byDate[day.dateStr] || []).slice(0, 3).map((m) => {
+      const cls = m.organizerId === currentUser?.id ? 'dot-organizer' : 'dot-invitee';
+      return `<span class="cal-dot ${cls}" title="${escapeHtml(m.title)}"></span>`;
+    }).join('');
+
+    return `
+      <button type="button" class="${classes}" data-date="${day.dateStr}">
+        <span class="cal-day-num">${day.dayNum}</span>
+        ${count ? `<span class="cal-day-badge">${count}</span>` : ''}
+        ${dots ? `<div class="cal-day-dots">${dots}</div>` : ''}
+      </button>`;
+  }).join('');
+
+  grid.querySelectorAll('.cal-day').forEach((cell) => {
+    cell.addEventListener('click', () => {
+      calendarState.selectedDate = cell.dataset.date;
+      renderCalendarGrid();
+      renderCalendarDayDetail(calendarState.selectedDate, byDate);
+    });
+  });
+
+  renderCalendarDayDetail(selectedDate, byDate);
+}
+
+async function loadMyCalendar() {
+  calendarState.meetings = await api('/meetings/my');
+  const anchor = calendarState.selectedDate || todayStr();
+  const d = new Date(`${anchor}T12:00:00`);
+  calendarState.year = d.getFullYear();
+  calendarState.month = d.getMonth();
+  calendarState.selectedDate = fmtDate(d);
+  renderCalendarGrid();
+}
+
+// ── Schedule (member) ───────────────────────────────────────────────────────
 
 async function loadSchedule() {
   const userId = document.getElementById('schedule-user').value;
@@ -815,7 +927,7 @@ async function createMeeting(e, force = false) {
     selectedInvitees.clear();
     renderInviteeList();
     document.getElementById('conflict-result').classList.add('hidden');
-    switchView('my-meetings');
+    switchView('my-calendar');
   } catch (err) {
     if (err.data?.requireConfirm) {
       const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要创建？`);
@@ -825,7 +937,7 @@ async function createMeeting(e, force = false) {
           body: JSON.stringify({ ...form, forceScheduleConflict: true }),
         });
         alert('会议创建成功！');
-        switchView('my-meetings');
+        switchView('my-calendar');
       }
       return;
     }
@@ -904,7 +1016,7 @@ async function showMeetingDetail(id) {
       if (!confirm('确定取消此会议？')) return;
       await api(`/meetings/${id}`, { method: 'DELETE' });
       overlay.classList.add('hidden');
-      loadMyMeetings();
+      loadMyCalendar();
       loadRoomGrid();
     });
   }
@@ -953,6 +1065,26 @@ document.querySelectorAll('.auth-tab').forEach((tab) => {
 
 document.querySelectorAll('.nav-item').forEach((item) => {
   item.addEventListener('click', () => switchView(item.dataset.view));
+});
+
+document.getElementById('cal-prev').addEventListener('click', () => {
+  const next = addMonths(calendarState.year, calendarState.month, -1);
+  calendarState.year = next.year;
+  calendarState.month = next.month;
+  renderCalendarGrid();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  const next = addMonths(calendarState.year, calendarState.month, 1);
+  calendarState.year = next.year;
+  calendarState.month = next.month;
+  renderCalendarGrid();
+});
+document.getElementById('cal-today').addEventListener('click', () => {
+  const now = new Date();
+  calendarState.year = now.getFullYear();
+  calendarState.month = now.getMonth();
+  calendarState.selectedDate = todayStr();
+  renderCalendarGrid();
 });
 
 document.getElementById('room-date').addEventListener('change', loadRoomGrid);

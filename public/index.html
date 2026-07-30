@@ -92,8 +92,8 @@
         <button class="nav-item active" data-view="rooms">
           <span class="nav-icon">🏢</span> 会议室预约
         </button>
-        <button class="nav-item" data-view="my-meetings">
-          <span class="nav-icon">📋</span> 我的会议
+        <button class="nav-item" data-view="my-calendar">
+          <span class="nav-icon">📆</span> 我的日程
         </button>
         <button class="nav-item" data-view="schedules">
           <span class="nav-icon">📅</span> 成员日程
@@ -129,12 +129,32 @@
           <div id="room-grid" class="room-grid"></div>
         </section>
 
-        <!-- 我的会议 -->
-        <section id="view-my-meetings" class="view hidden">
+        <!-- 我的日程 -->
+        <section id="view-my-calendar" class="view hidden">
           <div class="view-header">
-            <h2>我的会议</h2>
+            <h2>我的日程</h2>
+            <div class="calendar-nav date-picker-wrap">
+              <button id="cal-prev" class="btn btn-ghost btn-sm">◀</button>
+              <span id="cal-month-label" class="cal-month-label"></span>
+              <button id="cal-next" class="btn btn-ghost btn-sm">▶</button>
+              <button id="cal-today" class="btn btn-ghost btn-sm">今天</button>
+            </div>
           </div>
-          <div id="my-meetings-list" class="meetings-list"></div>
+          <div class="calendar-layout">
+            <div class="calendar-panel">
+              <div class="calendar-weekdays">
+                <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+              </div>
+              <div id="calendar-grid" class="calendar-grid"></div>
+            </div>
+            <div class="calendar-day-panel">
+              <div id="cal-day-header" class="cal-day-header">
+                <h3 id="cal-day-title">选择日期</h3>
+                <p id="cal-day-subtitle" class="cal-day-subtitle">点击日历中的日期查看当天安排</p>
+              </div>
+              <div id="cal-day-meetings" class="cal-day-meetings"></div>
+            </div>
+          </div>
         </section>
 
         <!-- 成员日程 -->
