@@ -1104,10 +1104,9 @@ body {
 }
 
 .calendar-layout {
-  display: grid;
-  grid-template-columns: 1fr 360px;
+  display: flex;
+  flex-direction: column;
   gap: 24px;
-  align-items: start;
 }
 
 .calendar-panel {
@@ -1116,6 +1115,7 @@ body {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   padding: 20px;
+  max-width: 720px;
 }
 
 .calendar-weekdays {
@@ -1226,16 +1226,26 @@ body {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   padding: 20px;
-  position: sticky;
-  top: 88px;
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  flex: 1;
 }
 
 .cal-day-header {
   margin-bottom: 16px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
+}
+
+.cal-day-header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cal-day-nav {
+  display: flex;
+  gap: 8px;
 }
 
 .cal-day-header h3 {
@@ -1250,53 +1260,144 @@ body {
 }
 
 .cal-day-meetings {
+  min-height: 200px;
+}
+
+/* 24-hour day timeline */
+.day-timeline-wrap {
+  max-height: 520px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #FAFBFC;
+}
+
+.day-timeline-grid {
+  position: relative;
+}
+
+.day-hour-row {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid #F1F5F9;
+}
+
+.day-hour-label {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 8px 0 10px;
+  text-align: right;
+}
+
+.day-hour-track {
+  flex: 1;
+  position: relative;
+}
+
+.day-hour-line {
+  border-top: 1px dashed #E2E8F0;
+  margin-top: 0;
+}
+
+.day-timeline-overlay {
+  position: absolute;
+  left: 52px;
+  right: 12px;
+  top: 0;
+  pointer-events: none;
+}
+
+.day-lunch-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(251, 191, 36, 0.08),
+    rgba(251, 191, 36, 0.08) 8px,
+    rgba(251, 191, 36, 0.04) 8px,
+    rgba(251, 191, 36, 0.04) 16px
+  );
+  border-top: 1px dashed #FCD34D;
+  border-bottom: 1px dashed #FCD34D;
+  pointer-events: none;
+}
+
+.day-timeline-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.day-meeting-block {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: none;
+  border-left: 4px solid var(--primary);
+  background: linear-gradient(135deg, var(--primary-light) 0%, #DBEAFE 100%);
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  overflow: hidden;
+  transition: var(--transition);
+  font-family: inherit;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
 }
 
-.cal-meeting-item {
-  display: flex;
-  gap: 14px;
-  padding: 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--bg);
-  cursor: pointer;
-  transition: var(--transition);
+.day-meeting-block:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.2);
+  z-index: 2;
 }
 
-.cal-meeting-item:hover {
-  border-color: rgba(37, 99, 235, 0.3);
-  background: var(--primary-light);
-  transform: translateX(2px);
+.day-meeting-block.organizer {
+  border-left-color: var(--primary);
+  background: linear-gradient(135deg, var(--primary-light) 0%, #DBEAFE 100%);
 }
 
-.cal-meeting-time {
-  flex-shrink: 0;
-  width: 72px;
+.day-meeting-block.invitee {
+  border-left-color: var(--success);
+  background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+}
+
+.day-meeting-block strong {
   font-size: 13px;
   font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-block-tag {
+  font-size: 10px;
+  font-weight: 700;
   color: var(--primary);
-  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.cal-meeting-time span {
-  display: block;
-  color: var(--text-secondary);
-  font-weight: 400;
+.day-meeting-block.invitee .day-block-tag { color: var(--success); }
+
+.day-block-time,
+.day-block-room {
   font-size: 11px;
-}
-
-.cal-meeting-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.cal-meeting-body p {
-  font-size: 13px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Responsive ───────────────────────────────────────────── */

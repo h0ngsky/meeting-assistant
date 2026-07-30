@@ -524,6 +524,60 @@ let calendarState = {
   meetings: [],
 };
 
+const DAY_TIMELINE_HOUR_HEIGHT = 48;
+
+function meetingBlockStyle(startTime, endTime) {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const startMins = start.getHours() * 60 + start.getMinutes();
+  const endMins = end.getHours() * 60 + end.getMinutes();
+  const top = (startMins / 60) * DAY_TIMELINE_HOUR_HEIGHT;
+  const height = Math.max(((endMins - startMins) / 60) * DAY_TIMELINE_HOUR_HEIGHT, 28);
+  return { top, height };
+}
+
+function renderDayTimeline24h(dateStr, dayMeetings) {
+  const totalHeight = 24 * DAY_TIMELINE_HOUR_HEIGHT;
+  const lunchTop = (12.5 * DAY_TIMELINE_HOUR_HEIGHT); // 12:30
+  const lunchHeight = 1.5 * DAY_TIMELINE_HOUR_HEIGHT; // 1.5h
+
+  let hourRows = '';
+  for (let h = 0; h < 24; h++) {
+    const label = `${String(h).padStart(2, '0')}:00`;
+    hourRows += `
+      <div class="day-hour-row" style="height:${DAY_TIMELINE_HOUR_HEIGHT}px">
+        <span class="day-hour-label">${label}</span>
+        <div class="day-hour-track"><div class="day-hour-line"></div></div>
+      </div>`;
+  }
+
+  const blocks = dayMeetings.map((m) => {
+    const { top, height } = meetingBlockStyle(m.startTime, m.endTime);
+    const isOrganizer = m.organizerId === currentUser.id;
+    const cls = isOrganizer ? 'organizer' : 'invitee';
+    const tag = isOrganizer ? '我发起' : '受邀';
+    return `
+      <button type="button" class="day-meeting-block ${cls}" data-id="${m.id}"
+        style="top:${top}px;height:${height}px">
+        <span class="day-block-tag">${tag}</span>
+        <strong>${escapeHtml(m.title)}</strong>
+        <span class="day-block-time">${fmtTime(m.startTime)} – ${fmtTime(m.endTime)}</span>
+        <span class="day-block-room">${escapeHtml(m.room?.name || m.roomId)}</span>
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="day-timeline-wrap">
+      <div class="day-timeline-grid">
+        ${hourRows}
+        <div class="day-timeline-overlay" style="height:${totalHeight}px">
+          <div class="day-lunch-zone" style="top:${lunchTop}px;height:${lunchHeight}px" title="午休 12:30-14:00"></div>
+          ${blocks || '<div class="day-timeline-empty">当天暂无会议</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderCalendarDayDetail(dateStr, byDate) {
   const titleEl = document.getElementById('cal-day-title');
   const subEl = document.getElementById('cal-day-subtitle');
@@ -532,34 +586,31 @@ function renderCalendarDayDetail(dateStr, byDate) {
 
   titleEl.textContent = formatCalDayTitle(dateStr);
   subEl.textContent = dayMeetings.length
-    ? `共 ${dayMeetings.length} 场会议`
+    ? `共 ${dayMeetings.length} 场会议 · 24 小时视图`
     : '当天暂无会议安排';
 
-  if (dayMeetings.length === 0) {
-    container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>这一天没有会议</p></div>';
-    return;
-  }
+  container.innerHTML = renderDayTimeline24h(dateStr, dayMeetings);
 
-  container.innerHTML = dayMeetings.map((m) => {
-    const isOrganizer = m.organizerId === currentUser.id;
-    const tag = isOrganizer ? '我发起的' : '受邀参加';
-    const tagCls = isOrganizer ? 'organizer' : 'invitee';
-    return `
-      <div class="cal-meeting-item" data-id="${m.id}">
-        <div class="cal-meeting-time">${fmtTime(m.startTime)}<span>–</span>${fmtTime(m.endTime)}</div>
-        <div class="cal-meeting-body">
-          <div class="cal-meeting-title">
-            <span class="meeting-tag ${tagCls}">${tag}</span>
-            ${escapeHtml(m.title)}
-          </div>
-          <p>${escapeHtml(m.room?.name || m.roomId)} · 发起人：${escapeHtml(m.organizer?.displayName || '未知')}</p>
-        </div>
-      </div>`;
-  }).join('');
-
-  container.querySelectorAll('.cal-meeting-item').forEach((item) => {
+  container.querySelectorAll('.day-meeting-block').forEach((item) => {
     item.addEventListener('click', () => showMeetingDetail(Number(item.dataset.id)));
   });
+
+  // 滚动到第一个会议或 8:00
+  const wrap = container.querySelector('.day-timeline-wrap');
+  if (wrap) {
+    const firstBlock = container.querySelector('.day-meeting-block');
+    wrap.scrollTop = firstBlock
+      ? Math.max(Number(firstBlock.style.top.replace('px', '')) - 60, 0)
+      : 8 * DAY_TIMELINE_HOUR_HEIGHT;
+  }
+}
+
+function selectCalendarDate(dateStr) {
+  calendarState.selectedDate = dateStr;
+  const d = new Date(`${dateStr}T12:00:00`);
+  calendarState.year = d.getFullYear();
+  calendarState.month = d.getMonth();
+  renderCalendarGrid();
 }
 
 function renderCalendarGrid() {
@@ -596,9 +647,7 @@ function renderCalendarGrid() {
 
   grid.querySelectorAll('.cal-day').forEach((cell) => {
     cell.addEventListener('click', () => {
-      calendarState.selectedDate = cell.dataset.date;
-      renderCalendarGrid();
-      renderCalendarDayDetail(calendarState.selectedDate, byDate);
+      selectCalendarDate(cell.dataset.date);
     });
   });
 
@@ -1084,11 +1133,17 @@ document.getElementById('cal-next').addEventListener('click', () => {
   renderCalendarGrid();
 });
 document.getElementById('cal-today').addEventListener('click', () => {
-  const now = new Date();
-  calendarState.year = now.getFullYear();
-  calendarState.month = now.getMonth();
-  calendarState.selectedDate = todayStr();
-  renderCalendarGrid();
+  selectCalendarDate(todayStr());
+});
+document.getElementById('cal-day-prev').addEventListener('click', () => {
+  if (calendarState.selectedDate) {
+    selectCalendarDate(addDays(calendarState.selectedDate, -1));
+  }
+});
+document.getElementById('cal-day-next').addEventListener('click', () => {
+  if (calendarState.selectedDate) {
+    selectCalendarDate(addDays(calendarState.selectedDate, 1));
+  }
 });
 
 document.getElementById('room-date').addEventListener('change', loadRoomGrid);

@@ -149,8 +149,16 @@
             </div>
             <div class="calendar-day-panel">
               <div id="cal-day-header" class="cal-day-header">
-                <h3 id="cal-day-title">选择日期</h3>
-                <p id="cal-day-subtitle" class="cal-day-subtitle">点击日历中的日期查看当天安排</p>
+                <div class="cal-day-header-top">
+                  <div>
+                    <h3 id="cal-day-title">选择日期</h3>
+                    <p id="cal-day-subtitle" class="cal-day-subtitle">点击日历中的日期查看 24 小时日程</p>
+                  </div>
+                  <div class="cal-day-nav">
+                    <button type="button" id="cal-day-prev" class="btn btn-ghost btn-sm">◀ 前一天</button>
+                    <button type="button" id="cal-day-next" class="btn btn-ghost btn-sm">后一天 ▶</button>
+                  </div>
+                </div>
               </div>
               <div id="cal-day-meetings" class="cal-day-meetings"></div>
             </div>
