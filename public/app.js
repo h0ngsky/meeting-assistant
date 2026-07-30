@@ -6,6 +6,13 @@ let currentUser = null;
 let rooms = [];
 let users = [];
 let selectedInvitees = new Set();
+let qbInvitees = new Set();
+let quickBookDraft = null;
+let dragSelect = null;
+
+const SLOT_MINUTES = 30;
+const DAY_START_MIN = 8 * 60;
+const DAY_END_MIN = 21 * 60;
 
 // ── API helpers ─────────────────────────────────────────────────────────────
 
@@ -152,7 +159,253 @@ function addDays(dateStr, n) {
   return fmtDate(d);
 }
 
-// ── Room grid ───────────────────────────────────────────────────────────────
+// ── Room grid & drag booking ────────────────────────────────────────────────
+
+function slotOverlapsMeeting(slotStart, slotEnd, meeting) {
+  const ms = new Date(meeting.startTime);
+  const me = new Date(meeting.endTime);
+  return ms < slotEnd && me > slotStart;
+}
+
+function isLunchPeriod(slotStart, slotEnd) {
+  if (currentUser?.role === 'admin') return false;
+  const lunchStart = new Date(slotStart);
+  lunchStart.setHours(12, 30, 0, 0);
+  const lunchEnd = new Date(slotStart);
+  lunchEnd.setHours(14, 0, 0, 0);
+  return slotStart < lunchEnd && slotEnd > lunchStart;
+}
+
+function buildRoomSlots(date, meetings) {
+  const slots = [];
+  for (let mins = DAY_START_MIN; mins < DAY_END_MIN; mins += SLOT_MINUTES) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const startStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const endMins = mins + SLOT_MINUTES;
+    const endStr = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+    const slotStart = new Date(`${date}T${startStr}:00`);
+    const slotEnd = new Date(`${date}T${endStr}:00`);
+
+    let status = 'free';
+    let meeting = null;
+    if (isLunchPeriod(slotStart, slotEnd)) {
+      status = 'lunch';
+    } else {
+      meeting = meetings.find((item) => slotOverlapsMeeting(slotStart, slotEnd, item));
+      if (meeting) status = 'busy';
+    }
+    slots.push({ index: slots.length, startStr, endStr, slotStart, slotEnd, status, meeting });
+  }
+  return slots;
+}
+
+function formatDurationLabel(startTime, endTime) {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins <= 0) return '0 小时';
+  if (mins % 60 === 0) return `${mins / 60} 小时`;
+  return `${(mins / 60).toFixed(1)} 小时`;
+}
+
+function clearDragHighlight(card) {
+  if (!card) return;
+  card.querySelectorAll('.slot-seg').forEach((el) => {
+    el.classList.remove('drag-selecting');
+  });
+}
+
+function rangeSelectable(slots, fromIdx, toIdx) {
+  const lo = Math.min(fromIdx, toIdx);
+  const hi = Math.max(fromIdx, toIdx);
+  for (let i = lo; i <= hi; i++) {
+    if (slots[i].status !== 'free') return false;
+  }
+  return true;
+}
+
+function applyDragHighlight(card, slots, fromIdx, toIdx) {
+  clearDragHighlight(card);
+  const lo = Math.min(fromIdx, toIdx);
+  const hi = Math.max(fromIdx, toIdx);
+  for (let i = lo; i <= hi; i++) {
+    const el = card.querySelector(`.slot-seg[data-index="${i}"]`);
+    if (el) el.classList.add('drag-selecting');
+  }
+}
+
+function openQuickBookModal({ room, date, startTime, endTime }) {
+  quickBookDraft = { roomId: room.id, roomName: room.name, date, startTime, endTime };
+  const duration = formatDurationLabel(startTime, endTime);
+  document.getElementById('book-summary').innerHTML = `
+    <div class="book-summary-row"><span>会议室</span><strong>${escapeHtml(room.name)}</strong></div>
+    <div class="book-summary-row"><span>日期</span><strong>${date}</strong></div>
+    <div class="book-summary-row"><span>时段</span><strong>${startTime} – ${endTime}</strong></div>
+    <div class="book-summary-row"><span>时长</span><strong class="duration-badge">${duration}</strong></div>`;
+  document.getElementById('qb-title').value = '';
+  document.getElementById('qb-desc').value = '';
+  document.getElementById('qb-conflict-result').classList.add('hidden');
+  qbInvitees = new Set();
+  renderQbInviteeList();
+  document.getElementById('book-modal-overlay').classList.remove('hidden');
+}
+
+function renderQbInviteeList() {
+  const container = document.getElementById('qb-invitee-list');
+  const others = users.filter((u) => u.id !== currentUser?.id);
+  if (others.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-secondary);font-size:13px">暂无其他成员</span>';
+    return;
+  }
+  container.innerHTML = others.map((u) => {
+    const selected = qbInvitees.has(u.id);
+    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}">
+      <input type="checkbox" ${selected ? 'checked' : ''}>
+      ${escapeHtml(u.displayName)}
+    </label>`;
+  }).join('');
+  container.querySelectorAll('.invitee-chip').forEach((chip) => {
+    chip.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = Number(chip.dataset.id);
+      if (qbInvitees.has(id)) qbInvitees.delete(id);
+      else qbInvitees.add(id);
+      renderQbInviteeList();
+    });
+  });
+}
+
+function showQbConflictResult(result) {
+  const el = document.getElementById('qb-conflict-result');
+  el.classList.remove('hidden', 'error', 'warning', 'success');
+  if (!result.ok) {
+    el.className = 'conflict-result error';
+    el.innerHTML = `<strong>❌ 无法预约</strong><br>${result.errors.map(escapeHtml).join('<br>')}`;
+    return;
+  }
+  if (result.hasScheduleConflict) {
+    el.className = 'conflict-result warning';
+    el.innerHTML = `<strong>⚠️ 成员日程冲突</strong><br>${result.warnings.map((w) => escapeHtml(w.message)).join('<br>')}<br><em>仍可强制创建</em>`;
+    return;
+  }
+  el.className = 'conflict-result success';
+  el.innerHTML = '<strong>✅ 无冲突，可以预约</strong>';
+}
+
+async function checkQuickBookConflicts() {
+  if (!quickBookDraft) return null;
+  const { roomId, date, startTime, endTime } = quickBookDraft;
+  try {
+    const result = await api('/meetings/check-conflicts', {
+      method: 'POST',
+      body: JSON.stringify({
+        roomId,
+        startTime: `${date}T${startTime}:00`,
+        endTime: `${date}T${endTime}:00`,
+        inviteeIds: [...qbInvitees],
+      }),
+    });
+    showQbConflictResult(result);
+    return result;
+  } catch (err) {
+    if (err.data?.conflicts) {
+      showQbConflictResult(err.data.conflicts);
+      return err.data.conflicts;
+    }
+    alert(err.message);
+    return null;
+  }
+}
+
+async function submitQuickBook(e, force = false) {
+  e.preventDefault();
+  if (!quickBookDraft) return;
+  const title = document.getElementById('qb-title').value.trim();
+  if (!title) { alert('请输入会议主题'); return; }
+
+  const { roomId, date, startTime, endTime } = quickBookDraft;
+  try {
+    await api('/meetings', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        roomId,
+        date,
+        startTime,
+        endTime,
+        inviteeIds: [...qbInvitees],
+        description: document.getElementById('qb-desc').value.trim(),
+        forceScheduleConflict: force,
+      }),
+    });
+    document.getElementById('book-modal-overlay').classList.add('hidden');
+    quickBookDraft = null;
+    alert('会议预约成功！');
+    loadRoomGrid();
+  } catch (err) {
+    if (err.data?.requireConfirm) {
+      const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要创建？`);
+      if (ok) {
+        await api('/meetings', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            roomId,
+            date,
+            startTime,
+            endTime,
+            inviteeIds: [...qbInvitees],
+            description: document.getElementById('qb-desc').value.trim(),
+            forceScheduleConflict: true,
+          }),
+        });
+        document.getElementById('book-modal-overlay').classList.add('hidden');
+        quickBookDraft = null;
+        alert('会议预约成功！');
+        loadRoomGrid();
+      }
+      return;
+    }
+    if (err.data?.conflicts) showQbConflictResult(err.data.conflicts);
+    else alert(err.message);
+  }
+}
+
+function setupRoomCardDrag(card, room, slots, date) {
+  card.querySelectorAll('.slot-seg.selectable').forEach((seg) => {
+    seg.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const idx = Number(seg.dataset.index);
+      dragSelect = { room, date, slots, anchorIdx: idx, cardEl: card };
+      applyDragHighlight(card, slots, idx, idx);
+    });
+  });
+}
+
+document.addEventListener('mouseup', () => {
+  if (!dragSelect) return;
+  const { room, date, slots, anchorIdx, cardEl } = dragSelect;
+  const selected = cardEl.querySelectorAll('.slot-seg.drag-selecting');
+  if (selected.length > 0) {
+    const indices = [...selected].map((el) => Number(el.dataset.index)).sort((a, b) => a - b);
+    const startTime = slots[indices[0]].startStr;
+    const endTime = slots[indices[indices.length - 1]].endStr;
+    openQuickBookModal({ room, date, startTime, endTime });
+  }
+  clearDragHighlight(cardEl);
+  dragSelect = null;
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragSelect) return;
+  const target = e.target.closest('.slot-seg.selectable');
+  if (!target || !dragSelect.cardEl.contains(target)) return;
+  const idx = Number(target.dataset.index);
+  if (rangeSelectable(dragSelect.slots, dragSelect.anchorIdx, idx)) {
+    applyDragHighlight(dragSelect.cardEl, dragSelect.slots, dragSelect.anchorIdx, idx);
+  }
+});
 
 async function loadRoomGrid() {
   const date = document.getElementById('room-date').value || todayStr();
@@ -171,57 +424,46 @@ async function loadRoomGrid() {
 function buildRoomCard(room, meetings, date) {
   const card = document.createElement('div');
   card.className = 'room-card';
+  const slots = buildRoomSlots(date, meetings);
 
-  const hours = [];
-  for (let h = 8; h <= 20; h++) hours.push(h);
+  let rowsHtml = '';
+  for (let h = 8; h < 21; h++) {
+    const hourLabel = `${String(h).padStart(2, '0')}:00`;
+    const halfSlots = slots.filter((s) => s.slotStart.getHours() === h);
+    const segsHtml = halfSlots.map((s) => {
+      let cls = `slot-seg ${s.status}`;
+      let title = '';
+      if (s.status === 'free') cls += ' selectable';
+      if (s.status === 'lunch') title = '午休禁约';
+      if (s.status === 'busy' && s.meeting) {
+        title = `${s.meeting.title} (${fmtTime(s.meeting.startTime)}-${fmtTime(s.meeting.endTime)})`;
+      }
+      const meetingId = s.meeting ? s.meeting.id : '';
+      return `<div class="${cls}" data-index="${s.index}" data-meeting-id="${meetingId}" title="${escapeHtml(title)}"></div>`;
+    }).join('');
 
-  let slotsHtml = '';
-  for (const h of hours) {
-    const timeLabel = `${String(h).padStart(2, '0')}:00`;
-    const slotStart = new Date(`${date}T${timeLabel}:00`);
-    const slotEnd = new Date(slotStart);
-    slotEnd.setHours(slotEnd.getHours() + 1);
-
-    const isLunch = h === 12 || h === 13;
-    const meeting = meetings.find((m) => {
-      const ms = new Date(m.startTime);
-      const me = new Date(m.endTime);
-      return ms < slotEnd && me > slotStart;
-    });
-
-    let barClass = 'free';
-    let content = '';
-    if (isLunch) {
-      barClass = 'lunch';
-      content = '<span class="slot-meeting">午休禁约</span>';
-    } else if (meeting) {
-      barClass = 'busy';
-      content = `<span class="slot-meeting">${meeting.title} (${fmtTime(meeting.startTime)}-${fmtTime(meeting.endTime)})</span>`;
-    }
-
-    slotsHtml += `
+    rowsHtml += `
       <div class="time-slot">
-        <span class="slot-time">${timeLabel}</span>
-        <div class="slot-bar ${barClass}" data-meeting-id="${meeting ? meeting.id : ''}">
-          ${content}
-        </div>
+        <span class="slot-time">${hourLabel}</span>
+        <div class="slot-bars">${segsHtml}</div>
       </div>`;
   }
 
   card.innerHTML = `
     <div class="room-card-header">
       <h3>${room.name}</h3>
-      <div class="capacity">最大容量 ${room.capacity} 人</div>
+      <div class="capacity">最大容量 ${room.capacity} 人 · 拖拽选择时段</div>
     </div>
-    <div class="room-timeline">${slotsHtml}</div>`;
+    <div class="room-timeline">${rowsHtml}</div>`;
 
-  card.querySelectorAll('.slot-bar.busy').forEach((bar) => {
-    bar.addEventListener('click', () => {
-      const id = bar.dataset.meetingId;
+  card.querySelectorAll('.slot-seg.busy').forEach((seg) => {
+    seg.addEventListener('click', () => {
+      const id = seg.dataset.meetingId;
       if (id) showMeetingDetail(Number(id));
     });
   });
 
+  setupRoomCardDrag(card, room, slots, date);
   return card;
 }
 
@@ -744,5 +986,18 @@ document.getElementById('modal-overlay').addEventListener('click', (e) => {
     document.getElementById('modal-overlay').classList.add('hidden');
   }
 });
+
+document.getElementById('book-modal-close').addEventListener('click', () => {
+  document.getElementById('book-modal-overlay').classList.add('hidden');
+  quickBookDraft = null;
+});
+document.getElementById('book-modal-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'book-modal-overlay') {
+    document.getElementById('book-modal-overlay').classList.add('hidden');
+    quickBookDraft = null;
+  }
+});
+document.getElementById('quick-book-form').addEventListener('submit', (e) => submitQuickBook(e, false));
+document.getElementById('qb-check-conflict').addEventListener('click', checkQuickBookConflicts);
 
 tryAutoLogin();

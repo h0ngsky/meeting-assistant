@@ -125,6 +125,7 @@
           <div class="lunch-notice">
             ⚠️ 12:30 - 14:00 为午休禁约时段（管理员可预约）
           </div>
+          <p class="room-drag-hint">💡 在空闲时段<strong>按住拖动</strong>选择时长，松开后填写信息即可预约</p>
           <div id="room-grid" class="room-grid"></div>
         </section>
 
@@ -282,6 +283,38 @@
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <!-- 快速预约弹窗 -->
+  <div id="book-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>预约会议室</h3>
+        <button id="book-modal-close" class="modal-close">&times;</button>
+      </div>
+      <form id="quick-book-form">
+        <div class="modal-body">
+          <div id="book-summary" class="book-summary"></div>
+          <div class="form-group">
+            <label>会议主题 *</label>
+            <input type="text" id="qb-title" placeholder="请输入会议主题" required>
+          </div>
+          <div class="form-group">
+            <label>邀请成员</label>
+            <div id="qb-invitee-list" class="invitee-list"></div>
+          </div>
+          <div class="form-group">
+            <label>会议说明</label>
+            <textarea id="qb-desc" rows="2" placeholder="可选"></textarea>
+          </div>
+          <div id="qb-conflict-result" class="conflict-result hidden"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="qb-check-conflict" class="btn btn-secondary">检测冲突</button>
+          <button type="submit" class="btn btn-primary">确认预约</button>
+        </div>
+      </form>
     </div>
   </div>
 
