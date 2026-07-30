@@ -427,25 +427,29 @@ function buildRoomCard(room, meetings, date) {
   const slots = buildRoomSlots(date, meetings);
 
   let rowsHtml = '';
-  for (let h = 8; h < 21; h++) {
-    const hourLabel = `${String(h).padStart(2, '0')}:00`;
-    const halfSlots = slots.filter((s) => s.slotStart.getHours() === h);
-    const segsHtml = halfSlots.map((s) => {
-      let cls = `slot-seg ${s.status}`;
-      let title = '';
-      if (s.status === 'free') cls += ' selectable';
-      if (s.status === 'lunch') title = '午休禁约';
-      if (s.status === 'busy' && s.meeting) {
-        title = `${s.meeting.title} (${fmtTime(s.meeting.startTime)}-${fmtTime(s.meeting.endTime)})`;
-      }
-      const meetingId = s.meeting ? s.meeting.id : '';
-      return `<div class="${cls}" data-index="${s.index}" data-meeting-id="${meetingId}" title="${escapeHtml(title)}"></div>`;
-    }).join('');
+  for (const s of slots) {
+    let cls = `slot-seg ${s.status}`;
+    let title = '';
+    if (s.status === 'free') cls += ' selectable';
+    if (s.status === 'lunch') title = '午休禁约';
+    if (s.status === 'busy' && s.meeting) {
+      title = `${s.meeting.title} (${fmtTime(s.meeting.startTime)}-${fmtTime(s.meeting.endTime)})`;
+    }
+    const meetingId = s.meeting ? s.meeting.id : '';
+    const label = s.status === 'busy' && s.meeting
+      ? escapeHtml(s.meeting.title)
+      : s.status === 'lunch'
+        ? '午休禁约'
+        : '';
 
     rowsHtml += `
       <div class="time-slot">
-        <span class="slot-time">${hourLabel}</span>
-        <div class="slot-bars">${segsHtml}</div>
+        <span class="slot-time">${s.startStr}</span>
+        <div class="slot-bars">
+          <div class="${cls}" data-index="${s.index}" data-meeting-id="${meetingId}" title="${escapeHtml(title)}">
+            ${label ? `<span class="slot-label">${label}</span>` : ''}
+          </div>
+        </div>
       </div>`;
   }
 
