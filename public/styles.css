@@ -522,9 +522,24 @@ body {
 }
 
 .room-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: flex;
   gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 4px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(60, 60, 67, 0.25) transparent;
+}
+
+.room-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.room-grid::-webkit-scrollbar-thumb {
+  background: rgba(60, 60, 67, 0.22);
+  border-radius: 3px;
 }
 
 .room-pager {
@@ -557,13 +572,17 @@ body {
 }
 
 .room-card {
+  flex: 0 0 280px;
+  min-width: 280px;
   background: var(--white);
   border-radius: var(--radius-lg);
   border: none;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   transition: var(--transition);
-  scroll-snap-align: center;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
 }
 
 .room-card:hover {
