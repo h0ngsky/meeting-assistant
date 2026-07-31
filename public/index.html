@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#F2F2F7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>会议助手</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="ios-ui">
   <!-- 登录页 -->
   <div id="auth-page" class="auth-page">
     <div class="auth-shell">
@@ -76,7 +76,7 @@
       <div class="topbar-left">
         <button type="button" id="menu-toggle" class="menu-toggle" aria-label="打开菜单">☰</button>
         <svg width="28" height="28" viewBox="0 0 48 48" fill="none" class="topbar-logo">
-          <rect width="48" height="48" rx="12" fill="#0089FF"/>
+          <rect width="48" height="48" rx="11" fill="#007AFF"/>
           <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
         </svg>
         <span class="topbar-title">会议助手</span>
@@ -344,6 +344,7 @@
   <!-- 发起会议弹窗（选完时段后打开） -->
   <div id="book-modal-overlay" class="modal-overlay hidden">
     <div class="modal">
+      <div class="modal-grabber" aria-hidden="true"></div>
       <div class="modal-header">
         <h3>发起会议</h3>
         <button id="book-modal-close" class="modal-close">&times;</button>
@@ -377,6 +378,7 @@
   <!-- 会议详情弹窗 -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal modal-wide">
+      <div class="modal-grabber" aria-hidden="true"></div>
       <div class="modal-header">
         <h3 id="modal-title">会议详情</h3>
         <button id="modal-close" class="modal-close">&times;</button>
