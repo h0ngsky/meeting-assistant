@@ -5,7 +5,6 @@ let token = localStorage.getItem('token');
 let currentUser = null;
 let rooms = [];
 let users = [];
-let selectedInvitees = new Set();
 let qbInvitees = new Set();
 let quickBookDraft = null;
 let dragSelect = null;
@@ -379,7 +378,7 @@ async function submitQuickBook(e, force = false) {
     });
     document.getElementById('book-modal-overlay').classList.add('hidden');
     quickBookDraft = null;
-    alert('会议预约成功！');
+    alert('会议发起成功！');
     await loadRoomGrid();
   } catch (err) {
     if (err.data?.requireConfirm) {
@@ -400,7 +399,7 @@ async function submitQuickBook(e, force = false) {
         });
         document.getElementById('book-modal-overlay').classList.add('hidden');
         quickBookDraft = null;
-        alert('会议预约成功！');
+        alert('会议发起成功！');
         await loadRoomGrid();
       }
       return;
@@ -740,19 +739,52 @@ function updateCalendarNav() {
   if (dateInput) dateInput.value = calendarState.selectedDate;
 }
 
-const DAY_TIMELINE_HOUR_HEIGHT = 36;
+const DAY_TIMELINE_HOUR_HEIGHT = 44;
 const busyScheduleCache = new Map();
 let scheduleTooltipEl = null;
 let scheduleTooltipTimer = null;
 
 function meetingBlockStyle(startTime, endTime) {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
+  const start = parseDateTimeValue(startTime);
+  const end = parseDateTimeValue(endTime);
   const startMins = start.getHours() * 60 + start.getMinutes();
   const endMins = end.getHours() * 60 + end.getMinutes();
   const top = (startMins / 60) * DAY_TIMELINE_HOUR_HEIGHT;
-  const height = Math.max(((endMins - startMins) / 60) * DAY_TIMELINE_HOUR_HEIGHT, 24);
+  const height = Math.max(((endMins - startMins) / 60) * DAY_TIMELINE_HOUR_HEIGHT, 20);
   return { top, height };
+}
+
+function renderMeetingBlockContent(m, height) {
+  const isOrganizer = m.organizerId === currentUser.id;
+  const tag = isOrganizer ? '我发起' : '受邀';
+  const timeStr = `${fmtTime(m.startTime)} – ${fmtTime(m.endTime)}`;
+  const room = escapeHtml(m.room?.name || m.roomId);
+  const title = escapeHtml(m.title);
+  const meta = `${timeStr} · ${room}`;
+
+  if (height < 38) {
+    return {
+      sizeClass: 'size-xs',
+      html: `<span class="day-block-title">${title}</span>`,
+    };
+  }
+  if (height < 54) {
+    return {
+      sizeClass: 'size-sm',
+      html: `
+        <span class="day-block-title">${title}</span>
+        <span class="day-block-meta">${timeStr}</span>`,
+    };
+  }
+  return {
+    sizeClass: 'size-lg',
+    html: `
+      <div class="day-block-row">
+        <span class="day-block-tag">${tag}</span>
+        <span class="day-block-title">${title}</span>
+      </div>
+      <span class="day-block-meta">${meta}</span>`,
+  };
 }
 
 function renderDayTimeline24h(dateStr, dayMeetings) {
@@ -774,14 +806,11 @@ function renderDayTimeline24h(dateStr, dayMeetings) {
     const { top, height } = meetingBlockStyle(m.startTime, m.endTime);
     const isOrganizer = m.organizerId === currentUser.id;
     const cls = isOrganizer ? 'organizer' : 'invitee';
-    const tag = isOrganizer ? '我发起' : '受邀';
+    const { sizeClass, html } = renderMeetingBlockContent(m, height);
     return `
-      <button type="button" class="day-meeting-block ${cls}" data-id="${m.id}"
-        style="top:${top}px;height:${height}px">
-        <span class="day-block-tag">${tag}</span>
-        <strong>${escapeHtml(m.title)}</strong>
-        <span class="day-block-time">${fmtTime(m.startTime)} – ${fmtTime(m.endTime)}</span>
-        <span class="day-block-room">${escapeHtml(m.room?.name || m.roomId)}</span>
+      <button type="button" class="day-meeting-block ${cls} ${sizeClass}" data-id="${m.id}"
+        style="top:${top}px;height:${height}px" title="${escapeHtml(m.title)}">
+        ${html}
       </button>`;
   }).join('');
 
@@ -990,7 +1019,6 @@ async function loadMembersAdmin() {
         await api(`/admin/users/${id}`, { method: 'DELETE' });
         users = await api('/users');
         populateUserSelect();
-        renderInviteeList();
         await loadMembersAdmin();
       } catch (err) {
         alert(err.message);
@@ -1013,7 +1041,6 @@ async function handleAdminCreateUser(e) {
     document.getElementById('admin-user-form').reset();
     users = await api('/users');
     populateUserSelect();
-    renderInviteeList();
     await loadMembersAdmin();
     showAdminMsg('成员添加成功', 'success');
   } catch (err) {
@@ -1023,7 +1050,6 @@ async function handleAdminCreateUser(e) {
 
 async function reloadRooms() {
   rooms = await api('/rooms');
-  populateRoomSelect();
 }
 
 async function loadRoomsAdmin() {
@@ -1117,7 +1143,6 @@ async function handleProfileUpdate(e) {
     updateUserBadge();
     users = await api('/users');
     populateUserSelect();
-    renderInviteeList();
     showProfileMsg('profile-msg', '姓名已更新', 'success');
   } catch (err) {
     showProfileMsg('profile-msg', err.message, 'error');
@@ -1243,149 +1268,8 @@ function setupInviteeChip(chip, userId, displayName, onToggle, getDate) {
   });
 }
 
-function getMeetingFormDate() {
-  return document.getElementById('m-date')?.value || todayStr();
-}
-
 function getQuickBookDate() {
   return quickBookDraft?.date || todayStr();
-}
-
-// ── Meeting form ────────────────────────────────────────────────────────────
-
-function populateRoomSelect() {
-  const sel = document.getElementById('m-room');
-  sel.innerHTML = rooms.map((r) =>
-    `<option value="${r.id}">${r.name}（${r.capacity}人）</option>`,
-  ).join('');
-}
-
-function renderInviteeList() {
-  const container = document.getElementById('invitee-list');
-  const others = users.filter((u) => u.id !== currentUser?.id);
-  if (others.length === 0) {
-    container.innerHTML = '<span style="color:var(--text-secondary);font-size:13px">暂无其他成员</span>';
-    return;
-  }
-  container.innerHTML = others.map((u) => {
-    const selected = selectedInvitees.has(u.id);
-    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}" title="悬停查看日程">
-      <input type="checkbox" ${selected ? 'checked' : ''}>
-      ${escapeHtml(u.displayName)}
-    </label>`;
-  }).join('');
-
-  container.querySelectorAll('.invitee-chip').forEach((chip) => {
-    const id = Number(chip.dataset.id);
-    const user = others.find((u) => u.id === id);
-    setupInviteeChip(
-      chip,
-      id,
-      user.displayName,
-      (uid) => {
-        if (selectedInvitees.has(uid)) selectedInvitees.delete(uid);
-        else selectedInvitees.add(uid);
-        renderInviteeList();
-      },
-      getMeetingFormDate,
-    );
-  });
-}
-
-function getMeetingFormData() {
-  const inviteeIds = [...selectedInvitees];
-  return {
-    title: document.getElementById('m-title').value.trim(),
-    date: document.getElementById('m-date').value,
-    roomId: document.getElementById('m-room').value,
-    startTime: document.getElementById('m-start').value,
-    endTime: document.getElementById('m-end').value,
-    inviteeIds,
-    description: document.getElementById('m-desc').value.trim(),
-  };
-}
-
-function showConflictResult(result) {
-  const el = document.getElementById('conflict-result');
-  el.classList.remove('hidden', 'error', 'warning', 'success');
-
-  if (!result.ok) {
-    el.className = 'conflict-result error';
-    el.innerHTML = `<strong>❌ 无法预约</strong><br>${result.errors.map(escapeHtml).join('<br>')}`;
-    return;
-  }
-  if (result.hasScheduleConflict) {
-    el.className = 'conflict-result warning';
-    const msgs = result.warnings.map((w) => escapeHtml(w.message)).join('<br>');
-    el.innerHTML = `<strong>⚠️ 成员日程冲突</strong><br>${msgs}<br><em>仍可强制创建</em>`;
-    return;
-  }
-  el.className = 'conflict-result success';
-  el.innerHTML = '<strong>✅ 无冲突，可以预约</strong>';
-}
-
-async function checkConflicts() {
-  const form = getMeetingFormData();
-  if (!form.date || !form.roomId || !form.startTime || !form.endTime) {
-    alert('请先填写日期、会议室和时间');
-    return null;
-  }
-  try {
-    const result = await api('/meetings/check-conflicts', {
-      method: 'POST',
-      body: JSON.stringify({
-        roomId: form.roomId,
-        startTime: `${form.date}T${form.startTime}:00`,
-        endTime: `${form.date}T${form.endTime}:00`,
-        inviteeIds: form.inviteeIds,
-      }),
-    });
-    showConflictResult(result);
-    return result;
-  } catch (err) {
-    if (err.data?.conflicts) {
-      showConflictResult(err.data.conflicts);
-      return err.data.conflicts;
-    }
-    alert(err.message);
-    return null;
-  }
-}
-
-async function createMeeting(e, force = false) {
-  e.preventDefault();
-  const form = getMeetingFormData();
-  if (!form.title) { alert('请输入会议主题'); return; }
-
-  try {
-    await api('/meetings', {
-      method: 'POST',
-      body: JSON.stringify({ ...form, forceScheduleConflict: force }),
-    });
-    alert('会议创建成功！');
-    document.getElementById('meeting-form').reset();
-    document.getElementById('m-start').value = '09:00';
-    document.getElementById('m-end').value = '10:00';
-    selectedInvitees.clear();
-    renderInviteeList();
-    document.getElementById('conflict-result').classList.add('hidden');
-    switchView('my-calendar');
-  } catch (err) {
-    if (err.data?.requireConfirm) {
-      const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要创建？`);
-      if (ok) {
-        await api('/meetings', {
-          method: 'POST',
-          body: JSON.stringify({ ...form, forceScheduleConflict: true }),
-        });
-        alert('会议创建成功！');
-        switchView('my-calendar');
-      }
-      return;
-    }
-    if (err.data?.conflicts) showConflictResult(err.data.conflicts);
-    else alert(err.message);
-  }
 }
 
 // ── Meeting detail modal ────────────────────────────────────────────────────
@@ -1476,14 +1360,11 @@ function escapeHtml(str) {
 
 async function initApp() {
   [rooms, users] = await Promise.all([api('/rooms'), api('/users')]);
-  populateRoomSelect();
   populateUserSelect();
-  renderInviteeList();
 
   const today = todayStr();
   document.getElementById('room-date').value = today;
   document.getElementById('schedule-date').value = today;
-  document.getElementById('m-date').value = today;
 
   loadRoomGrid();
 }
@@ -1550,11 +1431,11 @@ document.getElementById('cal-day-next').addEventListener('click', () => {
 document.getElementById('cal-date-input').addEventListener('change', (e) => {
   if (e.target.value) selectCalendarDate(e.target.value);
 });
-document.getElementById('m-date').addEventListener('change', () => {
-  busyScheduleCache.clear();
-});
 
-document.getElementById('room-date').addEventListener('change', loadRoomGrid);
+document.getElementById('room-date').addEventListener('change', () => {
+  busyScheduleCache.clear();
+  loadRoomGrid();
+});
 document.getElementById('prev-day').addEventListener('click', () => {
   document.getElementById('room-date').value = addDays(document.getElementById('room-date').value, -1);
   loadRoomGrid();
@@ -1571,8 +1452,6 @@ document.getElementById('today-btn').addEventListener('click', () => {
 document.getElementById('schedule-user').addEventListener('change', loadSchedule);
 document.getElementById('schedule-date').addEventListener('change', loadSchedule);
 
-document.getElementById('check-conflict-btn').addEventListener('click', checkConflicts);
-document.getElementById('meeting-form').addEventListener('submit', (e) => createMeeting(e, false));
 document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
 document.getElementById('password-form').addEventListener('submit', handlePasswordUpdate);
 document.getElementById('admin-user-form').addEventListener('submit', handleAdminCreateUser);

@@ -99,9 +99,6 @@
         <button class="nav-item" data-view="schedules">
           <span class="nav-icon">📅</span> 成员日程
         </button>
-        <button class="nav-item" data-view="new-meeting">
-          <span class="nav-icon">➕</span> 发起会议
-        </button>
         <div class="nav-section-label">账户</div>
         <button class="nav-item" data-view="profile">
           <span class="nav-icon">⚙️</span> 个人设置
@@ -129,7 +126,7 @@
           <div class="lunch-notice">
             ⚠️ 12:30 - 14:00 为午休禁约时段（管理员可预约）
           </div>
-          <p class="room-drag-hint">💡 空闲时段<strong>按住滑动</strong>选时长；<strong>左右滑动</strong>切换会议室</p>
+          <p class="room-drag-hint">💡 在空闲时段<strong>按住滑动</strong>选择时长，松开后<strong>弹窗发起会议</strong>；左右滑动切换会议室</p>
           <div class="room-carousel-wrap">
             <button type="button" id="room-carousel-prev" class="room-carousel-btn room-carousel-prev hidden" aria-label="上一个会议室">‹</button>
             <div id="room-grid" class="room-grid"></div>
@@ -192,55 +189,6 @@
             </div>
           </div>
           <div id="schedule-timeline" class="schedule-timeline"></div>
-        </section>
-
-        <!-- 发起会议 -->
-        <section id="view-new-meeting" class="view hidden">
-          <div class="view-header">
-            <h2>发起会议</h2>
-          </div>
-          <form id="meeting-form" class="meeting-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label>会议主题 *</label>
-                <input type="text" id="m-title" placeholder="请输入会议主题" required>
-              </div>
-            </div>
-            <div class="form-row cols-2">
-              <div class="form-group">
-                <label>日期 *</label>
-                <input type="date" id="m-date" required>
-              </div>
-              <div class="form-group">
-                <label>会议室 *</label>
-                <select id="m-room" class="select-input" required></select>
-              </div>
-            </div>
-            <div class="form-row cols-2">
-              <div class="form-group">
-                <label>开始时间 *</label>
-                <input type="time" id="m-start" value="09:00" required>
-              </div>
-              <div class="form-group">
-                <label>结束时间 *</label>
-                <input type="time" id="m-end" value="10:00" required>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>邀请成员</label>
-              <div id="invitee-list" class="invitee-list"></div>
-              <p class="form-hint">悬停成员姓名可查看当日占用时段（不含会议名称）；参会人数含发起人</p>
-            </div>
-            <div class="form-group">
-              <label>会议说明</label>
-              <textarea id="m-desc" rows="3" placeholder="可选"></textarea>
-            </div>
-            <div id="conflict-result" class="conflict-result hidden"></div>
-            <div class="form-actions">
-              <button type="button" id="check-conflict-btn" class="btn btn-secondary">检测冲突</button>
-              <button type="submit" class="btn btn-primary">创建会议</button>
-            </div>
-          </form>
         </section>
 
         <!-- 个人设置 -->
@@ -382,10 +330,6 @@
         <span class="mobile-nav-icon">📆</span>
         <span>日程</span>
       </button>
-      <button type="button" class="mobile-nav-item" data-view="new-meeting">
-        <span class="mobile-nav-icon">➕</span>
-        <span>发起</span>
-      </button>
       <button type="button" class="mobile-nav-item" data-view="schedules">
         <span class="mobile-nav-icon">📅</span>
         <span>成员</span>
@@ -397,11 +341,11 @@
     </nav>
   </div>
 
-  <!-- 快速预约弹窗 -->
+  <!-- 发起会议弹窗（选完时段后打开） -->
   <div id="book-modal-overlay" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
-        <h3>预约会议室</h3>
+        <h3>发起会议</h3>
         <button id="book-modal-close" class="modal-close">&times;</button>
       </div>
       <form id="quick-book-form">
@@ -414,6 +358,7 @@
           <div class="form-group">
             <label>邀请成员</label>
             <div id="qb-invitee-list" class="invitee-list"></div>
+            <p class="form-hint">悬停成员姓名可查看当日占用时段（不含会议名称）</p>
           </div>
           <div class="form-group">
             <label>会议说明</label>
@@ -423,7 +368,7 @@
         </div>
         <div class="modal-actions">
           <button type="button" id="qb-check-conflict" class="btn btn-secondary">检测冲突</button>
-          <button type="submit" class="btn btn-primary">确认预约</button>
+          <button type="submit" class="btn btn-primary">确认发起</button>
         </div>
       </form>
     </div>
