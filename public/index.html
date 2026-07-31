@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>会议助手</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -74,7 +74,8 @@
   <div id="app" class="app hidden">
     <header class="topbar">
       <div class="topbar-left">
-        <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+        <button type="button" id="menu-toggle" class="menu-toggle" aria-label="打开菜单">☰</button>
+        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" class="topbar-logo">
           <rect width="48" height="48" rx="12" fill="#0089FF"/>
           <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
         </svg>
@@ -87,7 +88,7 @@
     </header>
 
     <div class="layout">
-      <nav class="sidebar">
+      <nav class="sidebar" id="sidebar">
         <div class="nav-section-label">工作台</div>
         <button class="nav-item active" data-view="rooms">
           <span class="nav-icon">🏢</span> 会议室预约
@@ -128,7 +129,7 @@
           <div class="lunch-notice">
             ⚠️ 12:30 - 14:00 为午休禁约时段（管理员可预约）
           </div>
-          <p class="room-drag-hint">💡 在空闲时段<strong>按住拖动</strong>选择时长，松开后填写信息即可预约</p>
+          <p class="room-drag-hint">💡 在空闲时段<strong>按住并滑动</strong>选择时长（手机竖滑、电脑拖动），松开后填写信息</p>
           <div id="room-grid" class="room-grid"></div>
         </section>
 
@@ -136,34 +137,42 @@
         <section id="view-my-calendar" class="view hidden">
           <div class="view-header">
             <h2>我的日程</h2>
-            <div class="calendar-nav date-picker-wrap">
-              <button id="cal-prev" class="btn btn-ghost btn-sm">◀</button>
-              <span id="cal-month-label" class="cal-month-label"></span>
-              <button id="cal-next" class="btn btn-ghost btn-sm">▶</button>
-              <button id="cal-today" class="btn btn-ghost btn-sm">今天</button>
+            <div class="calendar-toolbar">
+              <div class="view-mode-toggle" role="tablist">
+                <button type="button" id="cal-mode-day" class="mode-btn active" data-mode="day">日视图</button>
+                <button type="button" id="cal-mode-month" class="mode-btn" data-mode="month">月视图</button>
+              </div>
+              <div id="cal-nav-day" class="calendar-nav date-picker-wrap">
+                <button id="cal-day-prev" class="btn btn-ghost btn-sm">◀</button>
+                <input type="date" id="cal-date-input" class="date-input">
+                <button id="cal-day-next" class="btn btn-ghost btn-sm">▶</button>
+                <button id="cal-today" class="btn btn-ghost btn-sm">今天</button>
+              </div>
+              <div id="cal-nav-month" class="calendar-nav date-picker-wrap hidden">
+                <button id="cal-prev" class="btn btn-ghost btn-sm">◀</button>
+                <span id="cal-month-label" class="cal-month-label"></span>
+                <button id="cal-next" class="btn btn-ghost btn-sm">▶</button>
+                <button id="cal-month-today" class="btn btn-ghost btn-sm">今天</button>
+              </div>
             </div>
           </div>
           <div class="calendar-layout">
-            <div class="calendar-day-panel">
+            <div id="cal-day-panel" class="calendar-day-panel">
               <div id="cal-day-header" class="cal-day-header">
-                <div class="cal-day-header-top">
-                  <div>
-                    <h3 id="cal-day-title">选择日期</h3>
-                    <p id="cal-day-subtitle" class="cal-day-subtitle">24 小时日程 · 下方月历切换日期</p>
-                  </div>
-                  <div class="cal-day-nav">
-                    <button type="button" id="cal-day-prev" class="btn btn-ghost btn-sm">◀ 前一天</button>
-                    <button type="button" id="cal-day-next" class="btn btn-ghost btn-sm">后一天 ▶</button>
-                  </div>
-                </div>
+                <h3 id="cal-day-title">选择日期</h3>
+                <p id="cal-day-subtitle" class="cal-day-subtitle">24 小时日程</p>
               </div>
               <div id="cal-day-meetings" class="cal-day-meetings"></div>
             </div>
-            <div class="calendar-panel">
+            <div id="cal-month-panel" class="calendar-panel hidden">
               <div class="calendar-weekdays">
                 <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
               </div>
               <div id="calendar-grid" class="calendar-grid"></div>
+              <div id="cal-month-detail" class="cal-month-detail">
+                <h4 id="cal-month-detail-title">当日安排</h4>
+                <div id="cal-month-day-list" class="cal-month-day-list"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -215,7 +224,7 @@
             <div class="form-group">
               <label>邀请成员</label>
               <div id="invitee-list" class="invitee-list"></div>
-              <p class="form-hint">参会人数将根据邀请成员自动计算（含发起人）</p>
+              <p class="form-hint">悬停成员姓名可查看当日占用时段（不含会议名称）；参会人数含发起人</p>
             </div>
             <div class="form-group">
               <label>会议说明</label>
@@ -356,6 +365,31 @@
         </section>
       </main>
     </div>
+
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+
+    <nav class="mobile-nav" id="mobile-nav" aria-label="主导航">
+      <button type="button" class="mobile-nav-item active" data-view="rooms">
+        <span class="mobile-nav-icon">🏢</span>
+        <span>预约</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="my-calendar">
+        <span class="mobile-nav-icon">📆</span>
+        <span>日程</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="new-meeting">
+        <span class="mobile-nav-icon">➕</span>
+        <span>发起</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="schedules">
+        <span class="mobile-nav-icon">📅</span>
+        <span>成员</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="profile">
+        <span class="mobile-nav-icon">⚙️</span>
+        <span>我的</span>
+      </button>
+    </nav>
   </div>
 
   <!-- 快速预约弹窗 -->

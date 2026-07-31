@@ -413,6 +413,33 @@ app.delete('/api/meetings/:id', authMiddleware, asyncHandler(async (req, res) =>
 
 // ── Schedules ───────────────────────────────────────────────────────────────
 
+app.get('/api/schedules/:userId/busy', authMiddleware, asyncHandler(async (req, res) => {
+  const uid = Number(req.params.userId);
+  const user = await findUserById(uid);
+  if (!user) return res.status(404).json({ error: '成员不存在' });
+
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: '缺少 date 参数' });
+
+  const { meetings } = await getMeetings();
+  const dayStart = new Date(`${date}T00:00:00`);
+  const dayEnd = new Date(`${date}T23:59:59`);
+  const busy = meetings
+    .filter(
+      (m) =>
+        m.status !== 'cancelled' &&
+        (m.organizerId === uid || (m.inviteeIds || []).includes(uid)),
+    )
+    .filter((m) => {
+      const s = new Date(m.startTime);
+      return s >= dayStart && s <= dayEnd;
+    })
+    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+    .map((m) => ({ startTime: m.startTime, endTime: m.endTime }));
+
+  res.json({ user: publicUser(user), date, busySlots: busy });
+}));
+
 app.get('/api/schedules/:userId', authMiddleware, asyncHandler(async (req, res) => {
   const uid = Number(req.params.userId);
   const user = await findUserById(uid);

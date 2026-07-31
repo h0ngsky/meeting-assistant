@@ -9,6 +9,7 @@ let selectedInvitees = new Set();
 let qbInvitees = new Set();
 let quickBookDraft = null;
 let dragSelect = null;
+let touchPending = null;
 
 const SLOT_MINUTES = 30;
 const DAY_START_MIN = 8 * 60;
@@ -121,11 +122,16 @@ async function tryAutoLogin() {
 // ── Navigation ──────────────────────────────────────────────────────────────
 
 function switchView(view) {
+  const mobileActive = ['members', 'rooms-admin'].includes(view) ? 'profile' : view;
   document.querySelectorAll('.nav-item').forEach((n) => {
     n.classList.toggle('active', n.dataset.view === view);
   });
+  document.querySelectorAll('.mobile-nav-item').forEach((n) => {
+    n.classList.toggle('active', n.dataset.view === mobileActive);
+  });
   document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
   document.getElementById(`view-${view}`).classList.remove('hidden');
+  closeMobileSidebar();
 
   if (view === 'rooms') loadRoomGrid();
   if (view === 'my-calendar') loadMyCalendar();
@@ -133,6 +139,18 @@ function switchView(view) {
   if (view === 'profile') loadProfile();
   if (view === 'members') loadMembersAdmin();
   if (view === 'rooms-admin') loadRoomsAdmin();
+}
+
+function openMobileSidebar() {
+  document.getElementById('sidebar')?.classList.add('open');
+  document.getElementById('sidebar-backdrop')?.classList.remove('hidden');
+  document.body.classList.add('sidebar-open');
+}
+
+function closeMobileSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebar-backdrop')?.classList.add('hidden');
+  document.body.classList.remove('sidebar-open');
 }
 
 // ── Date helpers ────────────────────────────────────────────────────────────
@@ -261,19 +279,25 @@ function renderQbInviteeList() {
   }
   container.innerHTML = others.map((u) => {
     const selected = qbInvitees.has(u.id);
-    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}">
+    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}" title="悬停查看日程">
       <input type="checkbox" ${selected ? 'checked' : ''}>
       ${escapeHtml(u.displayName)}
     </label>`;
   }).join('');
   container.querySelectorAll('.invitee-chip').forEach((chip) => {
-    chip.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = Number(chip.dataset.id);
-      if (qbInvitees.has(id)) qbInvitees.delete(id);
-      else qbInvitees.add(id);
-      renderQbInviteeList();
-    });
+    const id = Number(chip.dataset.id);
+    const user = others.find((u) => u.id === id);
+    setupInviteeChip(
+      chip,
+      id,
+      user.displayName,
+      (uid) => {
+        if (qbInvitees.has(uid)) qbInvitees.delete(uid);
+        else qbInvitees.add(uid);
+        renderQbInviteeList();
+      },
+      getQuickBookDate,
+    );
   });
 }
 
@@ -373,20 +397,9 @@ async function submitQuickBook(e, force = false) {
   }
 }
 
-function setupRoomCardDrag(card, room, slots, date) {
-  card.querySelectorAll('.slot-seg.selectable').forEach((seg) => {
-    seg.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      const idx = Number(seg.dataset.index);
-      dragSelect = { room, date, slots, anchorIdx: idx, cardEl: card };
-      applyDragHighlight(card, slots, idx, idx);
-    });
-  });
-}
-
-document.addEventListener('mouseup', () => {
+function finishDragSelect() {
   if (!dragSelect) return;
-  const { room, date, slots, anchorIdx, cardEl } = dragSelect;
+  const { room, date, slots, cardEl } = dragSelect;
   const selected = cardEl.querySelectorAll('.slot-seg.drag-selecting');
   if (selected.length > 0) {
     const indices = [...selected].map((el) => Number(el.dataset.index)).sort((a, b) => a - b);
@@ -396,16 +409,95 @@ document.addEventListener('mouseup', () => {
   }
   clearDragHighlight(cardEl);
   dragSelect = null;
-});
+}
 
-document.addEventListener('mousemove', (e) => {
+function updateDragFromPoint(clientX, clientY) {
   if (!dragSelect) return;
-  const target = e.target.closest('.slot-seg.selectable');
+  const target = document.elementFromPoint(clientX, clientY)?.closest('.slot-seg.selectable');
   if (!target || !dragSelect.cardEl.contains(target)) return;
   const idx = Number(target.dataset.index);
   if (rangeSelectable(dragSelect.slots, dragSelect.anchorIdx, idx)) {
     applyDragHighlight(dragSelect.cardEl, dragSelect.slots, dragSelect.anchorIdx, idx);
   }
+}
+
+function startDragSelect(room, date, slots, idx, card) {
+  dragSelect = { room, date, slots, anchorIdx: idx, cardEl: card };
+  applyDragHighlight(card, slots, idx, idx);
+}
+
+function setupRoomCardDrag(card, room, slots, date) {
+  card.querySelectorAll('.slot-seg.selectable').forEach((seg) => {
+    const idx = Number(seg.dataset.index);
+
+    seg.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startDragSelect(room, date, slots, idx, card);
+    });
+
+    seg.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      touchPending = {
+        room,
+        date,
+        slots,
+        idx,
+        card,
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+    }, { passive: true });
+  });
+}
+
+document.addEventListener('mouseup', finishDragSelect);
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragSelect) return;
+  updateDragFromPoint(e.clientX, e.clientY);
+});
+
+document.addEventListener('touchmove', (e) => {
+  if (touchPending && !dragSelect) {
+    const t = e.touches[0];
+    const dy = Math.abs(t.clientY - touchPending.y);
+    const dx = Math.abs(t.clientX - touchPending.x);
+    if (dy > 12 && dy > dx * 1.2) {
+      startDragSelect(
+        touchPending.room,
+        touchPending.date,
+        touchPending.slots,
+        touchPending.idx,
+        touchPending.card,
+      );
+      touchPending = null;
+    } else if (dy > 12 && dx >= dy) {
+      touchPending = null;
+    }
+  }
+  if (!dragSelect) return;
+  if (e.touches.length !== 1) return;
+  e.preventDefault();
+  updateDragFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+document.addEventListener('touchend', () => {
+  if (touchPending && !dragSelect) {
+    startDragSelect(
+      touchPending.room,
+      touchPending.date,
+      touchPending.slots,
+      touchPending.idx,
+      touchPending.card,
+    );
+  }
+  touchPending = null;
+  finishDragSelect();
+});
+
+document.addEventListener('touchcancel', () => {
+  touchPending = null;
+  finishDragSelect();
 });
 
 async function loadRoomGrid() {
@@ -523,9 +615,57 @@ let calendarState = {
   month: new Date().getMonth(),
   selectedDate: todayStr(),
   meetings: [],
+  viewMode: 'day',
 };
 
-const DAY_TIMELINE_HOUR_HEIGHT = 48;
+function setCalendarViewMode(mode) {
+  calendarState.viewMode = mode;
+  document.getElementById('cal-mode-day').classList.toggle('active', mode === 'day');
+  document.getElementById('cal-mode-month').classList.toggle('active', mode === 'month');
+  document.getElementById('cal-day-panel').classList.toggle('hidden', mode !== 'day');
+  document.getElementById('cal-month-panel').classList.toggle('hidden', mode !== 'month');
+  document.getElementById('cal-nav-day').classList.toggle('hidden', mode !== 'day');
+  document.getElementById('cal-nav-month').classList.toggle('hidden', mode !== 'month');
+  renderCalendarGrid();
+}
+
+function renderMonthDayList(dateStr, byDate) {
+  const titleEl = document.getElementById('cal-month-detail-title');
+  const container = document.getElementById('cal-month-day-list');
+  const dayMeetings = byDate[dateStr] || [];
+
+  titleEl.textContent = `${formatCalDayTitle(dateStr)} · ${dayMeetings.length ? `${dayMeetings.length} 场会议` : '暂无安排'}`;
+
+  if (dayMeetings.length === 0) {
+    container.innerHTML = '<div class="cal-month-empty">当天暂无会议</div>';
+    return;
+  }
+
+  container.innerHTML = dayMeetings.map((m) => {
+    const isOrganizer = m.organizerId === currentUser?.id;
+    const tag = isOrganizer ? '发起' : '受邀';
+    return `
+      <button type="button" class="cal-month-item" data-id="${m.id}">
+        <span class="cal-month-item-time">${fmtTime(m.startTime)} – ${fmtTime(m.endTime)}</span>
+        <span class="cal-month-item-title">${escapeHtml(m.title)}</span>
+        <span class="cal-month-item-meta">${escapeHtml(m.room?.name || m.roomId)} · ${tag}</span>
+      </button>`;
+  }).join('');
+
+  container.querySelectorAll('.cal-month-item').forEach((item) => {
+    item.addEventListener('click', () => showMeetingDetail(Number(item.dataset.id)));
+  });
+}
+
+function updateCalendarNav() {
+  const dateInput = document.getElementById('cal-date-input');
+  if (dateInput) dateInput.value = calendarState.selectedDate;
+}
+
+const DAY_TIMELINE_HOUR_HEIGHT = 36;
+const busyScheduleCache = new Map();
+let scheduleTooltipEl = null;
+let scheduleTooltipTimer = null;
 
 function meetingBlockStyle(startTime, endTime) {
   const start = new Date(startTime);
@@ -533,7 +673,7 @@ function meetingBlockStyle(startTime, endTime) {
   const startMins = start.getHours() * 60 + start.getMinutes();
   const endMins = end.getHours() * 60 + end.getMinutes();
   const top = (startMins / 60) * DAY_TIMELINE_HOUR_HEIGHT;
-  const height = Math.max(((endMins - startMins) / 60) * DAY_TIMELINE_HOUR_HEIGHT, 28);
+  const height = Math.max(((endMins - startMins) / 60) * DAY_TIMELINE_HOUR_HEIGHT, 24);
   return { top, height };
 }
 
@@ -587,8 +727,10 @@ function renderCalendarDayDetail(dateStr, byDate) {
 
   titleEl.textContent = formatCalDayTitle(dateStr);
   subEl.textContent = dayMeetings.length
-    ? `共 ${dayMeetings.length} 场会议 · 24 小时视图`
+    ? `共 ${dayMeetings.length} 场会议`
     : '当天暂无会议安排';
+
+  if (calendarState.viewMode !== 'day') return;
 
   container.innerHTML = renderDayTimeline24h(dateStr, dayMeetings);
 
@@ -596,12 +738,11 @@ function renderCalendarDayDetail(dateStr, byDate) {
     item.addEventListener('click', () => showMeetingDetail(Number(item.dataset.id)));
   });
 
-  // 默认滚到 8:00 工作时段；有会议时滚到第一场附近
   const wrap = container.querySelector('.day-timeline-wrap');
   if (wrap) {
     const firstBlock = container.querySelector('.day-meeting-block');
     if (firstBlock) {
-      wrap.scrollTop = Math.max(Number(firstBlock.style.top.replace('px', '')) - 80, 0);
+      wrap.scrollTop = Math.max(Number(firstBlock.style.top.replace('px', '')) - 60, 0);
     } else {
       wrap.scrollTop = 8 * DAY_TIMELINE_HOUR_HEIGHT;
     }
@@ -619,6 +760,7 @@ function selectCalendarDate(dateStr) {
 function renderCalendarGrid() {
   const { year, month, selectedDate, meetings } = calendarState;
   document.getElementById('cal-month-label').textContent = `${year}年${month + 1}月`;
+  updateCalendarNav();
 
   const byDate = groupMeetingsByDate(meetings);
   const today = todayStr();
@@ -637,7 +779,7 @@ function renderCalendarGrid() {
 
     const dots = (byDate[day.dateStr] || []).slice(0, 3).map((m) => {
       const cls = m.organizerId === currentUser?.id ? 'dot-organizer' : 'dot-invitee';
-      return `<span class="cal-dot ${cls}" title="${escapeHtml(m.title)}"></span>`;
+      return `<span class="cal-dot ${cls}"></span>`;
     }).join('');
 
     return `
@@ -655,6 +797,7 @@ function renderCalendarGrid() {
   });
 
   renderCalendarDayDetail(selectedDate, byDate);
+  renderMonthDayList(selectedDate, byDate);
 }
 
 async function loadMyCalendar() {
@@ -664,7 +807,7 @@ async function loadMyCalendar() {
   calendarState.year = d.getFullYear();
   calendarState.month = d.getMonth();
   calendarState.selectedDate = fmtDate(d);
-  renderCalendarGrid();
+  setCalendarViewMode(calendarState.viewMode || 'day');
 }
 
 // ── Schedule (member) ───────────────────────────────────────────────────────
@@ -934,6 +1077,102 @@ async function handlePasswordUpdate(e) {
   }
 }
 
+// ── Invitee schedule tooltip (desensitized) ─────────────────────────────────
+
+function ensureScheduleTooltip() {
+  if (!scheduleTooltipEl) {
+    scheduleTooltipEl = document.createElement('div');
+    scheduleTooltipEl.className = 'schedule-tooltip hidden';
+    scheduleTooltipEl.id = 'schedule-tooltip';
+    document.body.appendChild(scheduleTooltipEl);
+  }
+  return scheduleTooltipEl;
+}
+
+function positionScheduleTooltip(chip, tooltip) {
+  const rect = chip.getBoundingClientRect();
+  const tipRect = tooltip.getBoundingClientRect();
+  let left = rect.left;
+  let top = rect.bottom + 8;
+  if (left + tipRect.width > window.innerWidth - 12) {
+    left = window.innerWidth - tipRect.width - 12;
+  }
+  if (top + tipRect.height > window.innerHeight - 12) {
+    top = rect.top - tipRect.height - 8;
+  }
+  tooltip.style.left = `${Math.max(12, left)}px`;
+  tooltip.style.top = `${Math.max(12, top)}px`;
+}
+
+async function fetchBusySchedule(userId, date) {
+  const key = `${userId}-${date}`;
+  if (busyScheduleCache.has(key)) return busyScheduleCache.get(key);
+  const data = await api(`/schedules/${userId}/busy?date=${date}`);
+  busyScheduleCache.set(key, data);
+  return data;
+}
+
+function hideScheduleTooltip() {
+  clearTimeout(scheduleTooltipTimer);
+  if (scheduleTooltipEl) scheduleTooltipEl.classList.add('hidden');
+}
+
+function showScheduleTooltip(chip, userId, displayName, getDate) {
+  const date = getDate();
+  if (!date) return;
+
+  const tooltip = ensureScheduleTooltip();
+  tooltip.dataset.userId = String(userId);
+  tooltip.innerHTML = `
+    <div class="schedule-tooltip-title">${escapeHtml(displayName)} · ${date}</div>
+    <div class="schedule-tooltip-loading">加载中…</div>`;
+  tooltip.classList.remove('hidden');
+  positionScheduleTooltip(chip, tooltip);
+
+  fetchBusySchedule(userId, date).then((data) => {
+    if (tooltip.dataset.userId !== String(userId) || tooltip.classList.contains('hidden')) return;
+    const slots = data.busySlots || [];
+    tooltip.innerHTML = `
+      <div class="schedule-tooltip-title">${escapeHtml(displayName)} · ${date}</div>
+      ${slots.length === 0
+    ? '<div class="schedule-tooltip-empty">当日空闲</div>'
+    : slots.map((s) =>
+      `<div class="schedule-tooltip-slot">${fmtTime(s.startTime)} – ${fmtTime(s.endTime)} <span>已占用</span></div>`,
+    ).join('')}`;
+    positionScheduleTooltip(chip, tooltip);
+  }).catch(() => {
+    if (tooltip.dataset.userId !== String(userId)) return;
+    tooltip.innerHTML = `
+      <div class="schedule-tooltip-title">${escapeHtml(displayName)}</div>
+      <div class="schedule-tooltip-empty">无法加载日程</div>`;
+  });
+}
+
+function setupInviteeChip(chip, userId, displayName, onToggle, getDate) {
+  chip.addEventListener('click', (e) => {
+    e.preventDefault();
+    onToggle(userId);
+  });
+  chip.addEventListener('mouseenter', () => {
+    clearTimeout(scheduleTooltipTimer);
+    scheduleTooltipTimer = setTimeout(() => {
+      showScheduleTooltip(chip, userId, displayName, getDate);
+    }, 280);
+  });
+  chip.addEventListener('mouseleave', () => {
+    clearTimeout(scheduleTooltipTimer);
+    hideScheduleTooltip();
+  });
+}
+
+function getMeetingFormDate() {
+  return document.getElementById('m-date')?.value || todayStr();
+}
+
+function getQuickBookDate() {
+  return quickBookDraft?.date || todayStr();
+}
+
 // ── Meeting form ────────────────────────────────────────────────────────────
 
 function populateRoomSelect() {
@@ -952,20 +1191,26 @@ function renderInviteeList() {
   }
   container.innerHTML = others.map((u) => {
     const selected = selectedInvitees.has(u.id);
-    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}">
+    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}" title="悬停查看日程">
       <input type="checkbox" ${selected ? 'checked' : ''}>
       ${escapeHtml(u.displayName)}
     </label>`;
   }).join('');
 
   container.querySelectorAll('.invitee-chip').forEach((chip) => {
-    chip.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = Number(chip.dataset.id);
-      if (selectedInvitees.has(id)) selectedInvitees.delete(id);
-      else selectedInvitees.add(id);
-      renderInviteeList();
-    });
+    const id = Number(chip.dataset.id);
+    const user = others.find((u) => u.id === id);
+    setupInviteeChip(
+      chip,
+      id,
+      user.displayName,
+      (uid) => {
+        if (selectedInvitees.has(uid)) selectedInvitees.delete(uid);
+        else selectedInvitees.add(uid);
+        renderInviteeList();
+      },
+      getMeetingFormDate,
+    );
   });
 }
 
@@ -1182,10 +1427,20 @@ document.querySelectorAll('.auth-tab').forEach((tab) => {
   });
 });
 
-document.querySelectorAll('.nav-item').forEach((item) => {
+document.querySelectorAll('.nav-item, .mobile-nav-item').forEach((item) => {
   item.addEventListener('click', () => switchView(item.dataset.view));
 });
 
+document.getElementById('menu-toggle')?.addEventListener('click', () => {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar?.classList.contains('open')) closeMobileSidebar();
+  else openMobileSidebar();
+});
+
+document.getElementById('sidebar-backdrop')?.addEventListener('click', closeMobileSidebar);
+
+document.getElementById('cal-mode-day').addEventListener('click', () => setCalendarViewMode('day'));
+document.getElementById('cal-mode-month').addEventListener('click', () => setCalendarViewMode('month'));
 document.getElementById('cal-prev').addEventListener('click', () => {
   const next = addMonths(calendarState.year, calendarState.month, -1);
   calendarState.year = next.year;
@@ -1201,6 +1456,9 @@ document.getElementById('cal-next').addEventListener('click', () => {
 document.getElementById('cal-today').addEventListener('click', () => {
   selectCalendarDate(todayStr());
 });
+document.getElementById('cal-month-today').addEventListener('click', () => {
+  selectCalendarDate(todayStr());
+});
 document.getElementById('cal-day-prev').addEventListener('click', () => {
   if (calendarState.selectedDate) {
     selectCalendarDate(addDays(calendarState.selectedDate, -1));
@@ -1210,6 +1468,12 @@ document.getElementById('cal-day-next').addEventListener('click', () => {
   if (calendarState.selectedDate) {
     selectCalendarDate(addDays(calendarState.selectedDate, 1));
   }
+});
+document.getElementById('cal-date-input').addEventListener('change', (e) => {
+  if (e.target.value) selectCalendarDate(e.target.value);
+});
+document.getElementById('m-date').addEventListener('change', () => {
+  busyScheduleCache.clear();
 });
 
 document.getElementById('room-date').addEventListener('change', loadRoomGrid);

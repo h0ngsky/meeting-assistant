@@ -3,3 +3,5 @@ data/*.json
 data/*.tmp
 *.log
 .env
+.vercel
+.env*
