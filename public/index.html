@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#F2F2F7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>会议助手</title>
+  <title>Meeting Assistance · 会议助手</title>
+  <link rel="icon" href="/assets/logo-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body class="apple-ui">
@@ -16,14 +17,9 @@
       <div class="auth-brand">
         <div class="auth-brand-content">
           <div class="brand-logo">
-            <svg width="56" height="56" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-              <rect width="48" height="48" rx="11" fill="rgba(0,122,255,0.12)"/>
-              <path d="M14 17h20v2.5H14V17zm0 6h14v2.5H14V23zm0 6h18v2.5H14V29z" fill="#007AFF"/>
-              <circle cx="34" cy="32" r="5.5" fill="#FF9500"/>
-            </svg>
+            <img src="/assets/logo.svg" alt="Meeting Assistance" class="app-logo app-logo-lg" width="320" height="48">
           </div>
-          <h1>会议助手</h1>
-          <p>智能会议室预约 · 日程协同管理</p>
+          <p class="auth-tagline">智能会议室预约 · 日程协同管理</p>
           <ul class="auth-features">
             <li>实时查看会议室空闲时段</li>
             <li>自动检测成员日程冲突</li>
@@ -75,11 +71,8 @@
     <header class="topbar">
       <div class="topbar-left">
         <button type="button" id="menu-toggle" class="menu-toggle" aria-label="打开菜单">☰</button>
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" class="topbar-logo" aria-hidden="true">
-          <rect width="48" height="48" rx="11" fill="#007AFF"/>
-          <path d="M14 17h20v2.5H14V17zm0 6h14v2.5H14V23zm0 6h18v2.5H14V29z" fill="white"/>
-        </svg>
-        <span class="topbar-title">会议助手</span>
+        <img src="/assets/logo-icon.svg" alt="" class="app-logo app-logo-topbar-icon" width="28" height="28">
+        <span class="topbar-title">Meeting Assistance</span>
       </div>
       <div class="topbar-right">
         <span id="user-badge" class="user-badge"></span>
@@ -89,6 +82,9 @@
 
     <div class="layout">
       <nav class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <img src="/assets/logo.svg" alt="Meeting Assistance" class="app-logo app-logo-sidebar" width="240" height="36">
+        </div>
         <div class="nav-section-label">工作台</div>
         <button class="nav-item active" data-view="rooms">
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M9 20v-6h6v6"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></svg></span> 会议室预约

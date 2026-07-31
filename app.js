@@ -36,6 +36,12 @@ async function ensureDb() {
 }
 
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
 app.use(asyncHandler(async (_req, _res, next) => {
   await ensureDb();
   next();
@@ -374,6 +380,7 @@ app.put('/api/meetings/:id', authMiddleware, asyncHandler(async (req, res) => {
     });
   }
 
+  const nextInviteeIds = inviteeIds !== undefined ? inviteeIds.map(Number) : existing.inviteeIds;
   data.meetings[idx] = {
     ...existing,
     title: title ?? existing.title,
@@ -381,8 +388,8 @@ app.put('/api/meetings/:id', authMiddleware, asyncHandler(async (req, res) => {
     startTime: date && startTime ? startISO : existing.startTime,
     endTime: date && endTime ? endISO : existing.endTime,
     description: description ?? existing.description,
-    inviteeIds: inviteeIds !== undefined ? inviteeIds.map(Number) : existing.inviteeIds,
-    attendeeCount: attendeeCount ?? existing.attendeeCount,
+    inviteeIds: nextInviteeIds,
+    attendeeCount: inviteeIds !== undefined ? nextInviteeIds.length + 1 : (attendeeCount ?? existing.attendeeCount),
     updatedAt: new Date().toISOString(),
   };
   await saveMeetings(data);

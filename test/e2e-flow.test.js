@@ -247,6 +247,21 @@ async function run() {
   assert(r.data.participants.every((p) => Array.isArray(p.meetings)), '每人应有 meetings 数组');
   log('17', '参会人员日程查看正常');
 
+  r = await req(`/meetings/${testMeetingId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${memberTokenNew}` },
+    body: JSON.stringify({
+      title: '日程测试会（已改）',
+      roomId: '205',
+      date: dateStr,
+      startTime: '16:00',
+      endTime: '17:00',
+      inviteeIds: [],
+    }),
+  });
+  assert(r.ok && r.data.roomId === '205' && r.data.title.includes('已改'), `修改会议: ${r.data.error || r.status}`);
+  log('18', '修改会议（会议室/日期/成员）正常');
+
   // cleanup
   await req(`/meetings/${testMeetingId}`, {
     method: 'DELETE',
@@ -257,7 +272,7 @@ async function run() {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
 
-  console.log('\n=== 全部 17 项测试通过 ✅ ===\n');
+  console.log('\n=== 全部 18 项测试通过 ✅ ===\n');
 }
 
 run().catch((err) => {

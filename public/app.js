@@ -19,7 +19,7 @@ const DAY_END_MIN = 21 * 60;
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...opts.headers };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API}${path}`, { ...opts, headers });
+  const res = await fetch(`${API}${path}`, { cache: 'no-store', ...opts, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = new Error(data.error || '请求失败');
@@ -169,7 +169,12 @@ function fmtDate(d) {
 
 function parseDateTimeValue(value) {
   if (!value) return new Date(NaN);
-  const core = String(value).trim().slice(0, 19);
+  const normalized = String(value).trim();
+  if (/Z$/i.test(normalized) || /[+-]\d{2}:\d{2}$/.test(normalized)) {
+    const d = new Date(normalized);
+    return Number.isNaN(d.getTime()) ? new Date(NaN) : d;
+  }
+  const core = normalized.slice(0, 19);
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(core)) {
     const [datePart, timePart = '00:00:00'] = core.split('T');
     const [y, mo, d] = datePart.split('-').map(Number);
@@ -190,6 +195,44 @@ function addDays(dateStr, n) {
   return fmtDate(d);
 }
 
+// ── Users list helpers ──────────────────────────────────────────────────────
+
+/** Dedupe by id, then one entry per displayName (keep newest account). */
+function normalizeUsers(list) {
+  const byId = new Map();
+  for (const u of list) {
+    if (u && u.id != null) byId.set(u.id, u);
+  }
+  const byDisplay = new Map();
+  for (const u of byId.values()) {
+    const key = (u.displayName || u.username || '').trim();
+    const prev = byDisplay.get(key);
+    if (!prev || u.id > prev.id) byDisplay.set(key, u);
+  }
+  return [...byDisplay.values()].sort((a, b) =>
+    (a.displayName || a.username).localeCompare(b.displayName || b.username, 'zh-CN'),
+  );
+}
+
+async function refreshUsers() {
+  users = normalizeUsers(await api(`/users?_=${Date.now()}`));
+}
+
+async function refreshAfterMeetingChange(bookedDate) {
+  busyScheduleCache.clear();
+  if (bookedDate) {
+    document.getElementById('room-date').value = bookedDate;
+  }
+  await Promise.all([refreshUsers(), loadRoomGrid()]);
+  if (!document.getElementById('view-my-calendar')?.classList.contains('hidden')) {
+    loadMyCalendar();
+  }
+}
+
+function inviteeCandidates(excludeUserId) {
+  return users.filter((u) => u.id !== excludeUserId);
+}
+
 // ── Room grid & drag booking ────────────────────────────────────────────────
 
 function slotOverlapsMeeting(slotStart, slotEnd, meeting) {
@@ -198,13 +241,34 @@ function slotOverlapsMeeting(slotStart, slotEnd, meeting) {
   return ms < slotEnd && me > slotStart;
 }
 
-function isLunchPeriod(slotStart, slotEnd) {
-  if (currentUser?.role === 'admin') return false;
+function parseLocalDateTime(dateStr, timeStr) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const [h, mi, s = 0] = timeStr.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi, s, 0);
+}
+
+function meetingBelongsToRoom(meeting, room) {
+  const rid = meeting.roomId ?? meeting.room?.id;
+  if (rid != null && String(rid) === String(room.id)) return true;
+  if (meeting.room?.name && meeting.room.name === room.name) return true;
+  return false;
+}
+
+function isLunchSlot(slotStart, slotEnd) {
   const lunchStart = new Date(slotStart);
   lunchStart.setHours(12, 30, 0, 0);
   const lunchEnd = new Date(slotStart);
   lunchEnd.setHours(14, 0, 0, 0);
   return slotStart < lunchEnd && slotEnd > lunchStart;
+}
+
+function isLunchPeriod(slotStart, slotEnd) {
+  if (currentUser?.role === 'admin') return false;
+  return isLunchSlot(slotStart, slotEnd);
+}
+
+function slotStatusSelectable(status) {
+  return status === 'free' || status === 'lunch-admin';
 }
 
 function buildRoomSlots(date, meetings) {
@@ -215,13 +279,13 @@ function buildRoomSlots(date, meetings) {
     const startStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     const endMins = mins + SLOT_MINUTES;
     const endStr = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
-    const slotStart = new Date(`${date}T${startStr}:00`);
-    const slotEnd = new Date(`${date}T${endStr}:00`);
+    const slotStart = parseLocalDateTime(date, startStr);
+    const slotEnd = parseLocalDateTime(date, endStr);
 
     let status = 'free';
     let meeting = null;
-    if (isLunchPeriod(slotStart, slotEnd)) {
-      status = 'lunch';
+    if (isLunchSlot(slotStart, slotEnd)) {
+      status = currentUser?.role === 'admin' ? 'lunch-admin' : 'lunch';
     } else {
       meeting = meetings.find((item) => slotOverlapsMeeting(slotStart, slotEnd, item));
       if (meeting) status = 'busy';
@@ -251,7 +315,7 @@ function rangeSelectable(slots, fromIdx, toIdx) {
   const lo = Math.min(fromIdx, toIdx);
   const hi = Math.max(fromIdx, toIdx);
   for (let i = lo; i <= hi; i++) {
-    if (slots[i].status !== 'free') return false;
+    if (!slotStatusSelectable(slots[i].status)) return false;
   }
   return true;
 }
@@ -282,9 +346,28 @@ function openQuickBookModal({ room, date, startTime, endTime }) {
   document.getElementById('book-modal-overlay').classList.remove('hidden');
 }
 
+async function syncRoomGridAfterConflict() {
+  const date = quickBookDraft?.date || document.getElementById('room-date').value || todayStr();
+  document.getElementById('room-date').value = date;
+  busyScheduleCache.clear();
+  await loadRoomGrid();
+}
+
+function isTimeRangeFree(date, roomId, startTime, endTime, meetings) {
+  const roomMeetings = meetings.filter((m) => meetingBelongsToRoom(m, { id: roomId }));
+  const slots = buildRoomSlots(date, roomMeetings);
+  const lo = slots.findIndex((s) => s.startStr === startTime);
+  const hi = slots.findIndex((s) => s.endStr === endTime);
+  if (lo < 0 || hi < 0 || lo > hi) return false;
+  for (let i = lo; i <= hi; i++) {
+    if (!slotStatusSelectable(slots[i].status)) return false;
+  }
+  return true;
+}
+
 function renderQbInviteeList() {
   const container = document.getElementById('qb-invitee-list');
-  const others = users.filter((u) => u.id !== currentUser?.id);
+  const others = inviteeCandidates(currentUser?.id);
   if (others.length === 0) {
     container.innerHTML = '<span style="color:var(--text-secondary);font-size:13px">暂无其他成员</span>';
     return;
@@ -319,6 +402,7 @@ function showQbConflictResult(result) {
   if (!result.ok) {
     el.className = 'conflict-result error';
     el.innerHTML = `<strong>❌ 无法预约</strong><br>${result.errors.map(escapeHtml).join('<br>')}`;
+    syncRoomGridAfterConflict();
     return;
   }
   if (result.hasScheduleConflict) {
@@ -379,7 +463,7 @@ async function submitQuickBook(e, force = false) {
     document.getElementById('book-modal-overlay').classList.add('hidden');
     quickBookDraft = null;
     alert('会议发起成功！');
-    await loadRoomGrid();
+    await refreshAfterMeetingChange(date);
   } catch (err) {
     if (err.data?.requireConfirm) {
       const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要创建？`);
@@ -400,7 +484,7 @@ async function submitQuickBook(e, force = false) {
         document.getElementById('book-modal-overlay').classList.add('hidden');
         quickBookDraft = null;
         alert('会议发起成功！');
-        await loadRoomGrid();
+        await refreshAfterMeetingChange(date);
       }
       return;
     }
@@ -413,14 +497,31 @@ function finishDragSelect() {
   if (!dragSelect) return;
   const { room, date, slots, cardEl } = dragSelect;
   const selected = cardEl.querySelectorAll('.slot-seg.drag-selecting');
-  if (selected.length > 0) {
-    const indices = [...selected].map((el) => Number(el.dataset.index)).sort((a, b) => a - b);
-    const startTime = slots[indices[0]].startStr;
-    const endTime = slots[indices[indices.length - 1]].endStr;
-    openQuickBookModal({ room, date, startTime, endTime });
-  }
+  const draft = selected.length > 0
+    ? (() => {
+      const indices = [...selected].map((el) => Number(el.dataset.index)).sort((a, b) => a - b);
+      return {
+        room,
+        date,
+        startTime: slots[indices[0]].startStr,
+        endTime: slots[indices[indices.length - 1]].endStr,
+      };
+    })()
+    : null;
   clearDragHighlight(cardEl);
   dragSelect = null;
+  if (draft) openQuickBookAfterSync(draft);
+}
+
+async function openQuickBookAfterSync({ room, date, startTime, endTime }) {
+  document.getElementById('room-date').value = date;
+  const meetings = await fetchMeetingsForDate(date);
+  await loadRoomGrid(meetings);
+  if (!isTimeRangeFree(date, room.id, startTime, endTime, meetings)) {
+    alert('该时段已被占用，日程已更新，请重新选择');
+    return;
+  }
+  openQuickBookModal({ room, date, startTime, endTime });
 }
 
 function updateDragFromPoint(clientX, clientY) {
@@ -512,17 +613,21 @@ document.addEventListener('touchcancel', () => {
   finishDragSelect();
 });
 
-async function loadRoomGrid() {
+async function fetchMeetingsForDate(date) {
+  return api(`/meetings?date=${encodeURIComponent(date)}&_=${Date.now()}`);
+}
+
+async function loadRoomGrid(prefetchedMeetings) {
   const date = document.getElementById('room-date').value || todayStr();
   document.getElementById('room-date').value = date;
 
   const grid = document.getElementById('room-grid');
   const scrollLeft = grid.scrollLeft;
-  const meetings = await api(`/meetings?date=${encodeURIComponent(date)}&_=${Date.now()}`);
+  const meetings = prefetchedMeetings ?? await fetchMeetingsForDate(date);
   grid.innerHTML = '';
 
   for (const room of rooms) {
-    const roomMeetings = meetings.filter((m) => String(m.roomId) === String(room.id));
+    const roomMeetings = meetings.filter((m) => meetingBelongsToRoom(m, room));
     grid.appendChild(buildRoomCard(room, roomMeetings, date));
   }
 
@@ -600,15 +705,16 @@ function buildRoomCard(room, meetings, date) {
   for (const s of slots) {
     let cls = `slot-seg ${s.status}`;
     let title = '';
-    if (s.status === 'free') cls += ' selectable';
-    if (s.status === 'lunch') title = '午休禁约';
+    if (s.status === 'free' || s.status === 'lunch-admin') cls += ' selectable';
+    else cls += ' disabled';
+    if (s.status === 'lunch' || s.status === 'lunch-admin') title = '午休禁约';
     if (s.status === 'busy' && s.meeting) {
       title = `${s.meeting.title} (${fmtTime(s.meeting.startTime)}-${fmtTime(s.meeting.endTime)})`;
     }
     const meetingId = s.meeting ? s.meeting.id : '';
     const label = s.status === 'busy' && s.meeting
       ? escapeHtml(s.meeting.title)
-      : s.status === 'lunch'
+      : s.status === 'lunch' || s.status === 'lunch-admin'
         ? '午休禁约'
         : '';
 
@@ -677,7 +783,7 @@ function getCalendarDays(year, month) {
 function groupMeetingsByDate(meetings) {
   const map = {};
   meetings.forEach((m) => {
-    const key = String(m.startTime).slice(0, 10);
+    const key = meetingDatePart(m.startTime);
     if (!map[key]) map[key] = [];
     map[key].push(m);
   });
@@ -754,6 +860,53 @@ function meetingBlockStyle(startTime, endTime) {
   return { top, height };
 }
 
+/** Assign side-by-side columns for overlapping meetings on the day timeline. */
+function layoutOverlappingMeetings(meetings) {
+  if (!meetings.length) return [];
+
+  const items = meetings.map((m) => ({
+    meeting: m,
+    start: parseDateTimeValue(m.startTime).getTime(),
+    end: parseDateTimeValue(m.endTime).getTime(),
+  })).sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const columnEnds = [];
+  for (const item of items) {
+    let placed = false;
+    for (let col = 0; col < columnEnds.length; col++) {
+      if (columnEnds[col] <= item.start) {
+        item.column = col;
+        columnEnds[col] = item.end;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      item.column = columnEnds.length;
+      columnEnds.push(item.end);
+    }
+  }
+
+  return items.map((item) => {
+    const overlapping = items.filter(
+      (other) => other.start < item.end && other.end > item.start,
+    );
+    const totalColumns = Math.max(...overlapping.map((o) => o.column)) + 1;
+    return { meeting: item.meeting, column: item.column, totalColumns };
+  });
+}
+
+function meetingBlockPositionStyle(column, totalColumns) {
+  const gap = 6;
+  const inset = 4;
+  if (totalColumns <= 1) {
+    return `left:${inset}px;right:${inset}px;width:auto;`;
+  }
+  const widthExpr = `calc((100% - ${inset * 2}px - ${(totalColumns - 1) * gap}px) / ${totalColumns})`;
+  const leftExpr = `calc(${inset}px + ${column} * (${widthExpr} + ${gap}px))`;
+  return `left:${leftExpr};width:${widthExpr};right:auto;`;
+}
+
 function renderMeetingBlockContent(m, height) {
   const isOrganizer = m.organizerId === currentUser.id;
   const tag = isOrganizer ? '我发起' : '受邀';
@@ -802,14 +955,16 @@ function renderDayTimeline24h(dateStr, dayMeetings) {
       </div>`;
   }
 
-  const blocks = dayMeetings.map((m) => {
+  const layouts = layoutOverlappingMeetings(dayMeetings);
+  const blocks = layouts.map(({ meeting: m, column, totalColumns }) => {
     const { top, height } = meetingBlockStyle(m.startTime, m.endTime);
     const isOrganizer = m.organizerId === currentUser.id;
     const cls = isOrganizer ? 'organizer' : 'invitee';
     const { sizeClass, html } = renderMeetingBlockContent(m, height);
+    const pos = meetingBlockPositionStyle(column, totalColumns);
     return `
       <button type="button" class="day-meeting-block ${cls} ${sizeClass}" data-id="${m.id}"
-        style="top:${top}px;height:${height}px" title="${escapeHtml(m.title)}">
+        style="top:${top}px;height:${height}px;${pos}" title="${escapeHtml(m.title)}">
         ${html}
       </button>`;
   }).join('');
@@ -1017,7 +1172,7 @@ async function loadMembersAdmin() {
       if (!confirm(`确定删除成员「${member?.displayName || member?.username}」？`)) return;
       try {
         await api(`/admin/users/${id}`, { method: 'DELETE' });
-        users = await api('/users');
+        await refreshUsers();
         populateUserSelect();
         await loadMembersAdmin();
       } catch (err) {
@@ -1039,7 +1194,7 @@ async function handleAdminCreateUser(e) {
       body: JSON.stringify({ username, password, displayName, role }),
     });
     document.getElementById('admin-user-form').reset();
-    users = await api('/users');
+    await refreshUsers();
     populateUserSelect();
     await loadMembersAdmin();
     showAdminMsg('成员添加成功', 'success');
@@ -1141,7 +1296,7 @@ async function handleProfileUpdate(e) {
       body: JSON.stringify({ displayName }),
     });
     updateUserBadge();
-    users = await api('/users');
+    await refreshUsers();
     populateUserSelect();
     showProfileMsg('profile-msg', '姓名已更新', 'success');
   } catch (err) {
@@ -1210,9 +1365,44 @@ function positionScheduleTooltip(chip, tooltip) {
 async function fetchBusySchedule(userId, date) {
   const key = `${userId}-${date}`;
   if (busyScheduleCache.has(key)) return busyScheduleCache.get(key);
-  const data = await api(`/schedules/${userId}/busy?date=${date}`);
+  const data = await api(`/schedules/${userId}/busy?date=${encodeURIComponent(date)}&_=${Date.now()}`);
   busyScheduleCache.set(key, data);
   return data;
+}
+
+function buildMiniDayTimeline(busySlots) {
+  const totalMin = DAY_END_MIN - DAY_START_MIN;
+  const lunchStartMin = 12 * 60 + 30;
+  const lunchEndMin = 14 * 60;
+  const lunchTop = ((lunchStartMin - DAY_START_MIN) / totalMin) * 100;
+  const lunchHeight = ((lunchEndMin - lunchStartMin) / totalMin) * 100;
+
+  const hourLabels = [];
+  for (let m = DAY_START_MIN; m <= DAY_END_MIN; m += 120) {
+    hourLabels.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:00`);
+  }
+
+  const blocks = (busySlots || []).map((s) => {
+    const st = parseDateTimeValue(s.startTime);
+    const en = parseDateTimeValue(s.endTime);
+    const startMin = st.getHours() * 60 + st.getMinutes();
+    const endMin = en.getHours() * 60 + en.getMinutes();
+    const top = ((startMin - DAY_START_MIN) / totalMin) * 100;
+    const height = Math.max(((endMin - startMin) / totalMin) * 100, 3);
+    const label = `${fmtTime(s.startTime)}–${fmtTime(s.endTime)}`;
+    return `<div class="schedule-tooltip-block" style="top:${top}%;height:${height}%" title="已占用"><span>${label}</span></div>`;
+  }).join('');
+
+  return `
+    <div class="schedule-tooltip-calendar">
+      <div class="schedule-tooltip-hours">
+        ${hourLabels.map((h) => `<span>${h}</span>`).join('')}
+      </div>
+      <div class="schedule-tooltip-track">
+        <div class="schedule-tooltip-lunch" style="top:${lunchTop}%;height:${lunchHeight}%"></div>
+        ${blocks || '<div class="schedule-tooltip-free">当日暂无占用</div>'}
+      </div>
+    </div>`;
 }
 
 function hideScheduleTooltip() {
@@ -1237,11 +1427,7 @@ function showScheduleTooltip(chip, userId, displayName, getDate) {
     const slots = data.busySlots || [];
     tooltip.innerHTML = `
       <div class="schedule-tooltip-title">${escapeHtml(displayName)} · ${date}</div>
-      ${slots.length === 0
-    ? '<div class="schedule-tooltip-empty">当日空闲</div>'
-    : slots.map((s) =>
-      `<div class="schedule-tooltip-slot">${fmtTime(s.startTime)} – ${fmtTime(s.endTime)} <span>已占用</span></div>`,
-    ).join('')}`;
+      ${buildMiniDayTimeline(slots)}`;
     positionScheduleTooltip(chip, tooltip);
   }).catch(() => {
     if (tooltip.dataset.userId !== String(userId)) return;
@@ -1272,7 +1458,207 @@ function getQuickBookDate() {
   return quickBookDraft?.date || todayStr();
 }
 
-// ── Meeting detail modal ────────────────────────────────────────────────────
+// ── Meeting detail / edit modal ─────────────────────────────────────────────
+
+let editMeetingDraft = null;
+
+function meetingDatePart(iso) {
+  return fmtDate(parseDateTimeValue(iso));
+}
+
+function showConflictResult(el, result) {
+  el.classList.remove('hidden', 'error', 'warning', 'success');
+  if (!result.ok) {
+    el.className = 'conflict-result error';
+    el.innerHTML = `<strong>无法保存</strong><br>${result.errors.map(escapeHtml).join('<br>')}`;
+    return;
+  }
+  if (result.hasScheduleConflict) {
+    el.className = 'conflict-result warning';
+    el.innerHTML = `<strong>成员日程冲突</strong><br>${result.warnings.map((w) => escapeHtml(w.message)).join('<br>')}<br><em>确认后可强制保存</em>`;
+    return;
+  }
+  el.className = 'conflict-result success';
+  el.innerHTML = '<strong>无冲突，可以保存</strong>';
+}
+
+function renderEditInviteeList() {
+  const container = document.getElementById('edit-invitee-list');
+  if (!container || !editMeetingDraft) return;
+  const others = inviteeCandidates(editMeetingDraft.organizerId);
+  if (others.length === 0) {
+    container.innerHTML = '<span style="color:var(--text-secondary);font-size:13px">暂无其他成员</span>';
+    return;
+  }
+  container.innerHTML = others.map((u) => {
+    const selected = editMeetingDraft.invitees.has(u.id);
+    return `<label class="invitee-chip${selected ? ' selected' : ''}" data-id="${u.id}">
+      <input type="checkbox" ${selected ? 'checked' : ''}>
+      ${escapeHtml(u.displayName)}
+    </label>`;
+  }).join('');
+  container.querySelectorAll('.invitee-chip').forEach((chip) => {
+    const id = Number(chip.dataset.id);
+    const user = others.find((u) => u.id === id);
+    setupInviteeChip(
+      chip,
+      id,
+      user.displayName,
+      (uid) => {
+        if (editMeetingDraft.invitees.has(uid)) editMeetingDraft.invitees.delete(uid);
+        else editMeetingDraft.invitees.add(uid);
+        renderEditInviteeList();
+      },
+      () => document.getElementById('edit-date')?.value || todayStr(),
+    );
+  });
+}
+
+function getEditFormPayload() {
+  return {
+    title: document.getElementById('edit-title').value.trim(),
+    roomId: document.getElementById('edit-room').value,
+    date: document.getElementById('edit-date').value,
+    startTime: document.getElementById('edit-start').value,
+    endTime: document.getElementById('edit-end').value,
+    description: document.getElementById('edit-desc').value.trim(),
+    inviteeIds: [...editMeetingDraft.invitees],
+  };
+}
+
+function renderMeetingEditForm(m) {
+  editMeetingDraft = {
+    id: m.id,
+    organizerId: m.organizerId,
+    invitees: new Set((m.invitees || []).map((i) => i.id)),
+  };
+  document.getElementById('modal-title').textContent = '编辑会议';
+  document.getElementById('modal-body').innerHTML = `
+    <form id="edit-meeting-form" class="meeting-edit-form">
+      <div class="form-group">
+        <label>会议主题 *</label>
+        <input type="text" id="edit-title" required value="${escapeHtml(m.title)}">
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group">
+          <label>会议室 *</label>
+          <select id="edit-room" class="select-input" required>
+            ${rooms.map((r) => `<option value="${escapeHtml(r.id)}"${String(r.id) === String(m.roomId) ? ' selected' : ''}>${escapeHtml(r.name)}（${r.capacity}人）</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>日期 *</label>
+          <input type="date" id="edit-date" class="date-input" required value="${meetingDatePart(m.startTime)}">
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group">
+          <label>开始时间 *</label>
+          <input type="time" id="edit-start" required value="${fmtTime(m.startTime)}">
+        </div>
+        <div class="form-group">
+          <label>结束时间 *</label>
+          <input type="time" id="edit-end" required value="${fmtTime(m.endTime)}">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>邀请成员</label>
+        <div id="edit-invitee-list" class="invitee-list"></div>
+        <p class="form-hint">悬停成员姓名可查看当日占用时段</p>
+      </div>
+      <div class="form-group">
+        <label>会议说明</label>
+        <textarea id="edit-desc" rows="2">${escapeHtml(m.description || '')}</textarea>
+      </div>
+      <div id="edit-conflict-result" class="conflict-result hidden"></div>
+    </form>`;
+  renderEditInviteeList();
+  document.getElementById('modal-actions').innerHTML = `
+    <button type="button" class="btn btn-ghost" id="edit-meeting-cancel">返回</button>
+    <button type="button" class="btn btn-secondary" id="edit-check-conflict">检测冲突</button>
+    <button type="submit" form="edit-meeting-form" class="btn btn-primary">保存修改</button>`;
+  document.getElementById('edit-meeting-cancel').addEventListener('click', () => {
+    editMeetingDraft = null;
+    showMeetingDetail(m.id);
+  });
+  document.getElementById('edit-check-conflict').addEventListener('click', checkEditMeetingConflicts);
+  document.getElementById('edit-meeting-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitMeetingEdit(false);
+  });
+}
+
+async function checkEditMeetingConflicts() {
+  if (!editMeetingDraft) return null;
+  const payload = getEditFormPayload();
+  const el = document.getElementById('edit-conflict-result');
+  try {
+    const result = await api('/meetings/check-conflicts', {
+      method: 'POST',
+      body: JSON.stringify({
+        roomId: payload.roomId,
+        startTime: `${payload.date}T${payload.startTime}:00`,
+        endTime: `${payload.date}T${payload.endTime}:00`,
+        inviteeIds: payload.inviteeIds,
+        excludeMeetingId: editMeetingDraft.id,
+      }),
+    });
+    showConflictResult(el, result);
+    return result;
+  } catch (err) {
+    if (err.data?.conflicts) {
+      showConflictResult(el, err.data.conflicts);
+      return err.data.conflicts;
+    }
+    alert(err.message);
+    return null;
+  }
+}
+
+async function submitMeetingEdit(force = false) {
+  if (!editMeetingDraft) return;
+  const payload = getEditFormPayload();
+  if (!payload.title) {
+    alert('请输入会议主题');
+    return;
+  }
+  if (!payload.date || !payload.startTime || !payload.endTime) {
+    alert('请填写完整的日期与时间');
+    return;
+  }
+  if (payload.endTime <= payload.startTime) {
+    alert('结束时间须晚于开始时间');
+    return;
+  }
+  try {
+    await api(`/meetings/${editMeetingDraft.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...payload,
+        forceScheduleConflict: force,
+      }),
+    });
+    const savedId = editMeetingDraft.id;
+    editMeetingDraft = null;
+    alert('会议已更新');
+    const bookedDate = payload.date;
+    busyScheduleCache.clear();
+    if (bookedDate) document.getElementById('room-date').value = bookedDate;
+    await Promise.all([refreshUsers(), loadMyCalendar(), loadRoomGrid()]);
+    const scheduleDate = document.getElementById('schedule-date')?.value;
+    if (scheduleDate) loadSchedule();
+    showMeetingDetail(savedId);
+  } catch (err) {
+    if (err.data?.requireConfirm) {
+      const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要保存？`);
+      if (ok) await submitMeetingEdit(true);
+      return;
+    }
+    const el = document.getElementById('edit-conflict-result');
+    if (err.data?.conflicts && el) showConflictResult(el, err.data.conflicts);
+    else alert(err.message);
+  }
+}
 
 async function showMeetingDetail(id) {
   const [m, scheduleData] = await Promise.all([
@@ -1332,18 +1718,28 @@ async function showMeetingDetail(id) {
     ${participantHtml}`;
 
   const actions = document.getElementById('modal-actions');
-  const canCancel = m.organizerId === currentUser.id || currentUser.role === 'admin';
-  actions.innerHTML = canCancel
-    ? '<button class="btn btn-danger" id="cancel-meeting-btn">取消会议</button>'
-    : '';
+  const canEdit = m.organizerId === currentUser.id || currentUser.role === 'admin';
+  const canCancel = canEdit;
+  actions.innerHTML = [
+    canEdit ? '<button type="button" class="btn btn-secondary" id="edit-meeting-btn">编辑会议</button>' : '',
+    canCancel ? '<button class="btn btn-danger" id="cancel-meeting-btn">取消会议</button>' : '',
+  ].filter(Boolean).join('');
+
+  if (canEdit) {
+    document.getElementById('edit-meeting-btn').addEventListener('click', () => {
+      renderMeetingEditForm(m);
+    });
+  }
 
   if (canCancel) {
     document.getElementById('cancel-meeting-btn').addEventListener('click', async () => {
       if (!confirm('确定取消此会议？')) return;
       await api(`/meetings/${id}`, { method: 'DELETE' });
       overlay.classList.add('hidden');
+      editMeetingDraft = null;
+      const cancelledDate = meetingDatePart(m.startTime);
+      refreshAfterMeetingChange(cancelledDate);
       loadMyCalendar();
-      loadRoomGrid();
     });
   }
 
@@ -1359,7 +1755,8 @@ function escapeHtml(str) {
 // ── Init ────────────────────────────────────────────────────────────────────
 
 async function initApp() {
-  [rooms, users] = await Promise.all([api('/rooms'), api('/users')]);
+  [rooms] = await Promise.all([api('/rooms')]);
+  await refreshUsers();
   populateUserSelect();
 
   const today = todayStr();
@@ -1449,6 +1846,13 @@ document.getElementById('today-btn').addEventListener('click', () => {
   loadRoomGrid();
 });
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (!document.getElementById('view-rooms')?.classList.contains('hidden')) {
+    loadRoomGrid();
+  }
+});
+
 document.getElementById('schedule-user').addEventListener('change', loadSchedule);
 document.getElementById('schedule-date').addEventListener('change', loadSchedule);
 
@@ -1459,21 +1863,25 @@ document.getElementById('admin-room-form').addEventListener('submit', handleAdmi
 
 document.getElementById('modal-close').addEventListener('click', () => {
   document.getElementById('modal-overlay').classList.add('hidden');
+  editMeetingDraft = null;
 });
 document.getElementById('modal-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'modal-overlay') {
     document.getElementById('modal-overlay').classList.add('hidden');
+    editMeetingDraft = null;
   }
 });
 
 document.getElementById('book-modal-close').addEventListener('click', () => {
   document.getElementById('book-modal-overlay').classList.add('hidden');
   quickBookDraft = null;
+  loadRoomGrid();
 });
 document.getElementById('book-modal-overlay').addEventListener('click', (e) => {
   if (e.target.id === 'book-modal-overlay') {
     document.getElementById('book-modal-overlay').classList.add('hidden');
     quickBookDraft = null;
+    loadRoomGrid();
   }
 });
 document.getElementById('quick-book-form').addEventListener('submit', (e) => submitQuickBook(e, false));
