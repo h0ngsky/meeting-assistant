@@ -1,36 +1,54 @@
 :root {
-  /* iOS system palette */
-  --primary: #007AFF;
+  /* Apple semantic colors (light) */
+  --system-blue: #007AFF;
+  --system-green: #34C759;
+  --system-orange: #FF9500;
+  --system-red: #FF3B30;
+  --label: #000000;
+  --secondary-label: rgba(60, 60, 67, 0.6);
+  --tertiary-label: rgba(60, 60, 67, 0.3);
+  --system-background: #FFFFFF;
+  --secondary-system-background: #F2F2F7;
+  --system-grouped-background: #F2F2F7;
+  --secondary-system-grouped-background: #FFFFFF;
+  --separator: rgba(60, 60, 67, 0.29);
+  --primary: var(--system-blue);
   --primary-dark: #0051D5;
   --primary-light: rgba(0, 122, 255, 0.12);
   --primary-glow: rgba(0, 122, 255, 0.22);
-  --success: #34C759;
-  --warning: #FF9500;
-  --danger: #FF3B30;
-  --text: #1C1C1E;
-  --text-secondary: rgba(60, 60, 67, 0.6);
+  --success: var(--system-green);
+  --success-light: rgba(52, 199, 89, 0.14);
+  --warning: var(--system-orange);
+  --danger: var(--system-red);
+  --text: var(--label);
+  --text-secondary: var(--secondary-label);
   --border: rgba(60, 60, 67, 0.12);
-  --bg: #F2F2F7;
-  --white: #FFFFFF;
+  --bg: var(--system-grouped-background);
+  --white: var(--system-background);
+  --surface: var(--secondary-system-grouped-background);
   --sidebar-bg: rgba(255, 255, 255, 0.78);
   --glass: rgba(255, 255, 255, 0.72);
+  --glass-solid: #FFFFFF;
   --glass-border: rgba(255, 255, 255, 0.5);
   --fill-secondary: rgba(120, 120, 128, 0.16);
   --fill-tertiary: rgba(118, 118, 128, 0.12);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
-  --radius: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  --radius: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
   --transition: 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  --spring: 0.28s cubic-bezier(0.34, 1.1, 0.64, 1);
   --blur: saturate(180%) blur(20px);
+  --touch-min: 44px;
+  --font-system: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-system);
   background: var(--bg);
   color: var(--text);
   line-height: 1.47059;
@@ -49,9 +67,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background:
-    radial-gradient(ellipse 100% 80% at 50% -20%, rgba(0, 122, 255, 0.18) 0%, transparent 55%),
-    var(--bg);
+  background: var(--system-grouped-background);
 }
 
 .auth-shell {
@@ -63,28 +79,17 @@ body {
   border-radius: var(--radius-xl);
   overflow: hidden;
   box-shadow: var(--shadow-lg);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  background: var(--system-background);
 }
 
 .auth-brand {
   display: flex;
   align-items: center;
   padding: 44px;
-  background: linear-gradient(160deg, #007AFF 0%, #5856D6 100%);
-  color: white;
+  background: var(--secondary-system-background);
+  color: var(--label);
   position: relative;
-  overflow: hidden;
-}
-
-.auth-brand::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.2) 0%, transparent 45%),
-    radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.12) 0%, transparent 40%);
-  pointer-events: none;
 }
 
 .auth-brand-content {
@@ -97,15 +102,16 @@ body {
 }
 
 .auth-brand h1 {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   margin-bottom: 8px;
+  line-height: 1.1;
 }
 
 .auth-brand p {
   font-size: 15px;
-  opacity: 0.85;
+  color: var(--secondary-label);
   margin-bottom: 32px;
 }
 
@@ -128,15 +134,16 @@ body {
   position: absolute;
   left: 0;
   font-weight: 700;
-  opacity: 0.8;
+  color: var(--system-blue);
 }
 
 .auth-card {
-  background: var(--white);
+  background: var(--system-background);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px 36px;
+  border-left: 1px solid var(--border);
 }
 
 .auth-card-inner {
@@ -166,8 +173,8 @@ body {
 }
 
 .auth-tab.active {
-  background: var(--white);
-  color: var(--text);
+  background: var(--system-background);
+  color: var(--label);
   font-weight: 600;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
@@ -175,11 +182,11 @@ body {
 .auth-hint {
   text-align: center;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--secondary-label);
   margin-top: 16px;
   padding: 10px;
-  background: var(--bg);
-  border-radius: 8px;
+  background: var(--secondary-system-background);
+  border-radius: var(--radius);
 }
 
 .error-msg {
@@ -208,21 +215,22 @@ body {
   justify-content: center;
   gap: 6px;
   letter-spacing: -0.022em;
+  min-height: var(--touch-min);
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: var(--system-blue);
   color: white;
   box-shadow: none;
 }
 
 .btn-primary:hover {
   background: var(--primary-dark);
-  transform: none;
 }
 
 .btn-primary:active {
   opacity: 0.82;
+  transform: scale(0.98);
 }
 
 .btn-secondary {
@@ -291,8 +299,8 @@ body {
 .select-input:focus,
 .date-input:focus {
   outline: none;
-  background: var(--white);
-  box-shadow: 0 0 0 2px var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--primary), var(--shadow-sm);
 }
 
 .form-row { margin-bottom: 0; }
@@ -305,7 +313,12 @@ body {
 
 /* ── App layout ───────────────────────────────────────────── */
 
-.app { min-height: 100vh; display: flex; flex-direction: column; }
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--system-grouped-background);
+}
 
 .topbar {
   height: 52px;
@@ -357,7 +370,7 @@ body {
   font-weight: 600;
   padding: 5px 12px;
   background: var(--fill-tertiary);
-  color: var(--text-secondary);
+  color: var(--secondary-label);
   border-radius: 20px;
   border: none;
 }
@@ -389,7 +402,7 @@ body {
   font-weight: 400;
   text-transform: uppercase;
   letter-spacing: -0.01em;
-  color: var(--text-secondary);
+  color: var(--secondary-label);
   padding: 8px 12px 4px;
   margin-top: 12px;
 }
@@ -408,11 +421,12 @@ body {
   cursor: pointer;
   font-size: 15px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--label);
   text-align: left;
   transition: var(--transition);
   margin-bottom: 2px;
   font-family: inherit;
+  min-height: var(--touch-min);
 }
 
 .nav-item:hover {
@@ -421,12 +435,30 @@ body {
 
 .nav-item.active {
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--system-blue);
   font-weight: 600;
   box-shadow: none;
 }
 
-.nav-icon { font-size: 20px; width: 24px; text-align: center; }
+.nav-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.nav-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .main-content {
   flex: 1;
@@ -444,12 +476,6 @@ body {
   gap: 10px;
 }
 
-.view-header h2 {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
 .date-picker-wrap {
   display: flex;
   align-items: center;
@@ -461,6 +487,12 @@ body {
 }
 
 .date-input { width: auto; border: none !important; box-shadow: none !important; padding: 8px 10px !important; background: transparent !important; }
+
+.view-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
 
 .lunch-notice {
   background: rgba(255, 149, 0, 0.12);
@@ -574,7 +606,7 @@ body {
 .room-card {
   flex: 0 0 280px;
   min-width: 280px;
-  background: var(--white);
+  background: var(--secondary-system-grouped-background);
   border-radius: var(--radius-lg);
   border: none;
   overflow: hidden;
@@ -586,13 +618,12 @@ body {
 }
 
 .room-card:hover {
-  transform: none;
   box-shadow: var(--shadow);
 }
 
 .room-card-header {
   padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(0, 122, 255, 0.92) 0%, #007AFF 100%);
+  background: var(--system-blue);
   color: white;
 }
 
@@ -660,7 +691,7 @@ body {
 }
 
 .slot-seg.free {
-  background: rgba(52, 199, 89, 0.12);
+  background: var(--success-light);
   border: none;
 }
 
@@ -687,7 +718,7 @@ body {
 }
 
 .slot-seg.drag-selecting {
-  background: var(--primary) !important;
+  background: var(--system-blue) !important;
   border: none !important;
   box-shadow: none;
   z-index: 2;
@@ -701,12 +732,12 @@ body {
   transition: var(--transition);
 }
 
-.slot-bar.free { background: #F0FDF4; border: 1px dashed #86EFAC; }
-.slot-bar.lunch { background: #FFFBEB; border: 1px dashed #FCD34D; }
+.slot-bar.free { background: var(--success-light); border: 1px dashed rgba(52, 199, 89, 0.45); }
+.slot-bar.lunch { background: rgba(255, 149, 0, 0.12); border: 1px dashed rgba(255, 149, 0, 0.45); }
 
 .slot-bar.busy {
-  background: linear-gradient(135deg, var(--primary-light) 0%, #DBEAFE 100%);
-  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: var(--primary-light);
+  border: 1px solid rgba(0, 122, 255, 0.2);
   cursor: pointer;
   overflow: hidden;
 }
@@ -837,13 +868,13 @@ body {
 .avatar {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  background: linear-gradient(160deg, #007AFF 0%, #5856D6 100%);
+  border-radius: 12px;
+  background: var(--system-blue);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 16px;
   box-shadow: none;
 }
@@ -1083,7 +1114,7 @@ body {
 }
 
 .modal {
-  background: var(--white);
+  background: var(--secondary-system-grouped-background);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   width: 100%;
   max-width: 520px;
@@ -1175,7 +1206,7 @@ body {
 
 .day-meeting-block.invitee {
   border-left-color: var(--success);
-  background: rgba(52, 199, 89, 0.15);
+  background: var(--success-light);
 }
 
 .invitee-chip.selected {
@@ -1769,6 +1800,11 @@ body {
   .auth-features { display: none; }
 
   .auth-brand h1 { font-size: 24px; }
+
+  .auth-card {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 @media (max-width: 768px) {
@@ -1862,7 +1898,7 @@ body {
     border-radius: 0;
     font-size: 10px;
     font-weight: 500;
-    color: var(--text-secondary);
+    color: var(--secondary-label);
     cursor: pointer;
     font-family: inherit;
     -webkit-tap-highlight-color: transparent;
@@ -1870,13 +1906,27 @@ body {
   }
 
   .mobile-nav-item.active {
-    color: var(--primary);
+    color: var(--system-blue);
     background: transparent;
   }
 
   .mobile-nav-icon {
-    font-size: 22px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     line-height: 1;
+  }
+
+  .mobile-nav-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.75;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .main-content {
@@ -2156,49 +2206,69 @@ body {
   }
 }
 
-/* ── iOS UI polish ─────────────────────────────────────────── */
+/* ── Apple UI polish ────────────────────────────────────────── */
 
-body.ios-ui {
-  background: var(--bg);
+body.apple-ui {
+  background: var(--system-grouped-background);
 }
 
-body.ios-ui .view + .view {
-  animation: fade-in 0.2s ease;
+body.apple-ui .sidebar,
+body.apple-ui .topbar,
+body.apple-ui .mobile-nav {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-@keyframes fade-in {
-  from { opacity: 0.6; }
-  to { opacity: 1; }
-}
-
-body.ios-ui .sidebar {
-  border-right: 0.5px solid var(--border);
-}
-
-body.ios-ui .room-pager-dot {
+body.apple-ui .room-pager-dot {
   background: rgba(60, 60, 67, 0.18);
 }
 
-body.ios-ui .room-pager-dot.active {
-  background: var(--primary);
+body.apple-ui .room-pager-dot.active {
+  background: var(--system-blue);
 }
 
-body.ios-ui .cal-month-item {
+body.apple-ui .cal-month-item {
   border: none;
   background: var(--fill-tertiary);
   border-radius: 10px;
 }
 
-body.ios-ui .cal-month-item:hover {
+body.apple-ui .cal-month-item:hover {
   background: var(--fill-secondary);
 }
 
-body.ios-ui .auth-card {
-  background: rgba(255, 255, 255, 0.96);
+body.apple-ui .meeting-form,
+body.apple-ui .calendar-day-panel,
+body.apple-ui .calendar-panel,
+body.apple-ui .schedule-timeline,
+body.apple-ui .members-table-wrap {
+  background: var(--secondary-system-grouped-background);
+  border: none;
+  box-shadow: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: light;
+@media (prefers-reduced-transparency: reduce) {
+  .topbar,
+  .sidebar,
+  .mobile-nav,
+  .modal-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .topbar,
+  .sidebar,
+  .mobile-nav {
+    background: var(--glass-solid) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .modal {
+    animation: none !important;
   }
 }

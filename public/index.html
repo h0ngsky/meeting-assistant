@@ -9,17 +9,17 @@
   <title>会议助手</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body class="ios-ui">
+<body class="apple-ui">
   <!-- 登录页 -->
   <div id="auth-page" class="auth-page">
     <div class="auth-shell">
       <div class="auth-brand">
         <div class="auth-brand-content">
           <div class="brand-logo">
-            <svg width="56" height="56" viewBox="0 0 48 48" fill="none">
-              <rect width="48" height="48" rx="12" fill="white" fill-opacity="0.15"/>
-              <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
-              <circle cx="34" cy="30" r="6" fill="#FFD666"/>
+            <svg width="56" height="56" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+              <rect width="48" height="48" rx="11" fill="rgba(0,122,255,0.12)"/>
+              <path d="M14 17h20v2.5H14V17zm0 6h14v2.5H14V23zm0 6h18v2.5H14V29z" fill="#007AFF"/>
+              <circle cx="34" cy="32" r="5.5" fill="#FF9500"/>
             </svg>
           </div>
           <h1>会议助手</h1>
@@ -75,9 +75,9 @@
     <header class="topbar">
       <div class="topbar-left">
         <button type="button" id="menu-toggle" class="menu-toggle" aria-label="打开菜单">☰</button>
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" class="topbar-logo">
+        <svg width="28" height="28" viewBox="0 0 48 48" fill="none" class="topbar-logo" aria-hidden="true">
           <rect width="48" height="48" rx="11" fill="#007AFF"/>
-          <path d="M14 18h20v2H14v-2zm0 5h14v2H14v-2zm0 5h18v2H14v-2z" fill="white"/>
+          <path d="M14 17h20v2.5H14V17zm0 6h14v2.5H14V23zm0 6h18v2.5H14V29z" fill="white"/>
         </svg>
         <span class="topbar-title">会议助手</span>
       </div>
@@ -91,23 +91,23 @@
       <nav class="sidebar" id="sidebar">
         <div class="nav-section-label">工作台</div>
         <button class="nav-item active" data-view="rooms">
-          <span class="nav-icon">🏢</span> 会议室预约
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M9 20v-6h6v6"/><path d="M9 10h.01M15 10h.01M9 14h.01M15 14h.01"/></svg></span> 会议室预约
         </button>
         <button class="nav-item" data-view="my-calendar">
-          <span class="nav-icon">📆</span> 我的日程
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8 14h2M14 14h2M8 17h2"/></svg></span> 我的日程
         </button>
         <button class="nav-item" data-view="schedules">
-          <span class="nav-icon">📅</span> 成员日程
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1"/><path d="M16 11h4M18 9v4"/></svg></span> 成员日程
         </button>
         <div class="nav-section-label">账户</div>
         <button class="nav-item" data-view="profile">
-          <span class="nav-icon">⚙️</span> 个人设置
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> 个人设置
         </button>
         <button class="nav-item nav-admin hidden" data-view="members">
-          <span class="nav-icon">👥</span> 成员管理
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M4 20v-1a4 4 0 0 1 4-4h1"/><path d="M14 20v-1a3 3 0 0 1 3-3h1"/></svg></span> 成员管理
         </button>
         <button class="nav-item nav-admin hidden" data-view="rooms-admin">
-          <span class="nav-icon">🏠</span> 会议室管理
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M4 10h16v10H4z"/><path d="M10 14h4"/></svg></span> 会议室管理
         </button>
       </nav>
 
@@ -323,19 +323,19 @@
 
     <nav class="mobile-nav" id="mobile-nav" aria-label="主导航">
       <button type="button" class="mobile-nav-item active" data-view="rooms">
-        <span class="mobile-nav-icon">🏢</span>
+        <span class="mobile-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M9 20v-6h6v6"/></svg></span>
         <span>预约</span>
       </button>
       <button type="button" class="mobile-nav-item" data-view="my-calendar">
-        <span class="mobile-nav-icon">📆</span>
+        <span class="mobile-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span>
         <span>日程</span>
       </button>
       <button type="button" class="mobile-nav-item" data-view="schedules">
-        <span class="mobile-nav-icon">📅</span>
+        <span class="mobile-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1"/><path d="M16 11h4M18 9v4"/></svg></span>
         <span>成员</span>
       </button>
       <button type="button" class="mobile-nav-item" data-view="profile">
-        <span class="mobile-nav-icon">⚙️</span>
+        <span class="mobile-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>我的</span>
       </button>
     </nav>
