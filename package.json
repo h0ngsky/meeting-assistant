@@ -1,7 +1,7 @@
 {
   "name": "meeting-assistant",
   "version": "1.0.0",
-  "description": "钉钉风格会议助手 - 会议室预约与日程管理",
+  "description": "一个开源的会议室管理预约助手 — 支持预约、日程协同与冲突检测",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
