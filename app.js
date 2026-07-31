@@ -19,6 +19,7 @@ const {
 } = require('./lib/db');
 const { authMiddleware, login, requireAdmin } = require('./lib/auth');
 const { checkMeetingConflicts } = require('./lib/conflicts');
+const { buildDateTime, datePartOf, parseDateTimeValue } = require('./lib/rooms');
 
 const app = express();
 
@@ -178,14 +179,9 @@ app.get('/api/meetings', authMiddleware, asyncHandler(async (req, res) => {
   meetings = meetings.filter((m) => m.status !== 'cancelled');
 
   if (date) {
-    const dayStart = new Date(`${date}T00:00:00`);
-    const dayEnd = new Date(`${date}T23:59:59`);
-    meetings = meetings.filter((m) => {
-      const s = new Date(m.startTime);
-      return s >= dayStart && s <= dayEnd;
-    });
+    meetings = meetings.filter((m) => datePartOf(m.startTime) === date);
   }
-  if (roomId) meetings = meetings.filter((m) => m.roomId === roomId);
+  if (roomId) meetings = meetings.filter((m) => String(m.roomId) === String(roomId));
   if (userId) {
     const uid = Number(userId);
     meetings = meetings.filter(
@@ -211,11 +207,9 @@ app.get('/api/meetings/:id/participant-schedules', authMiddleware, asyncHandler(
   const m = meetings.find((x) => x.id === Number(req.params.id));
   if (!m) return res.status(404).json({ error: '会议不存在' });
 
-  const meetingStart = new Date(m.startTime);
-  const meetingEnd = new Date(m.endTime);
-  const date = req.query.date || meetingStart.toISOString().slice(0, 10);
-  const dayStart = new Date(`${date}T00:00:00`);
-  const dayEnd = new Date(`${date}T23:59:59`);
+  const meetingStart = parseDateTimeValue(m.startTime);
+  const meetingEnd = parseDateTimeValue(m.endTime);
+  const date = req.query.date || datePartOf(m.startTime);
 
   const participantIds = [...new Set([m.organizerId, ...(m.inviteeIds || [])])];
 
@@ -229,13 +223,12 @@ app.get('/api/meetings/:id/participant-schedules', authMiddleware, asyncHandler(
           (item) =>
             item.status !== 'cancelled' &&
             (item.organizerId === uid || (item.inviteeIds || []).includes(uid)) &&
-            new Date(item.startTime) >= dayStart &&
-            new Date(item.startTime) <= dayEnd,
+            datePartOf(item.startTime) === date,
         )
-        .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+        .sort((a, b) => parseDateTimeValue(a.startTime) - parseDateTimeValue(b.startTime))
         .map(async (item) => {
-          const s = new Date(item.startTime);
-          const e = new Date(item.endTime);
+          const s = parseDateTimeValue(item.startTime);
+          const e = parseDateTimeValue(item.endTime);
           const isCurrent = item.id === m.id;
           const overlapsCurrent = !isCurrent && s < meetingEnd && e > meetingStart;
           return {
@@ -298,8 +291,8 @@ app.post('/api/meetings', authMiddleware, asyncHandler(async (req, res) => {
     return res.status(400).json({ error: '请填写完整的会议信息' });
   }
 
-  const startISO = `${date}T${startTime}:00`;
-  const endISO = `${date}T${endTime}:00`;
+  const startISO = buildDateTime(date, startTime);
+  const endISO = buildDateTime(date, endTime);
   const data = await getMeetings();
   const conflict = await checkMeetingConflicts({
     meetings: data.meetings,
@@ -326,10 +319,10 @@ app.post('/api/meetings', authMiddleware, asyncHandler(async (req, res) => {
   const meeting = {
     id: data.nextId++,
     title,
-    roomId,
+    roomId: String(roomId),
     organizerId: req.user.id,
-    startTime: new Date(startISO).toISOString(),
-    endTime: new Date(endISO).toISOString(),
+    startTime: startISO,
+    endTime: endISO,
     description: description || '',
     inviteeIds: (inviteeIds || []).map(Number),
     attendeeCount: (inviteeIds || []).length + 1,
@@ -354,8 +347,8 @@ app.put('/api/meetings/:id', authMiddleware, asyncHandler(async (req, res) => {
   }
 
   const { title, roomId, date, startTime, endTime, description, inviteeIds, attendeeCount, forceScheduleConflict } = req.body || {};
-  const startISO = date && startTime ? `${date}T${startTime}:00` : existing.startTime;
-  const endISO = date && endTime ? `${date}T${endTime}:00` : existing.endTime;
+  const startISO = date && startTime ? buildDateTime(date, startTime) : existing.startTime;
+  const endISO = date && endTime ? buildDateTime(date, endTime) : existing.endTime;
 
   const conflict = await checkMeetingConflicts({
     meetings: data.meetings,
@@ -384,9 +377,9 @@ app.put('/api/meetings/:id', authMiddleware, asyncHandler(async (req, res) => {
   data.meetings[idx] = {
     ...existing,
     title: title ?? existing.title,
-    roomId: roomId ?? existing.roomId,
-    startTime: date && startTime ? new Date(startISO).toISOString() : existing.startTime,
-    endTime: date && endTime ? new Date(endISO).toISOString() : existing.endTime,
+    roomId: roomId != null ? String(roomId) : existing.roomId,
+    startTime: date && startTime ? startISO : existing.startTime,
+    endTime: date && endTime ? endISO : existing.endTime,
     description: description ?? existing.description,
     inviteeIds: inviteeIds !== undefined ? inviteeIds.map(Number) : existing.inviteeIds,
     attendeeCount: attendeeCount ?? existing.attendeeCount,
@@ -422,19 +415,14 @@ app.get('/api/schedules/:userId/busy', authMiddleware, asyncHandler(async (req, 
   if (!date) return res.status(400).json({ error: '缺少 date 参数' });
 
   const { meetings } = await getMeetings();
-  const dayStart = new Date(`${date}T00:00:00`);
-  const dayEnd = new Date(`${date}T23:59:59`);
   const busy = meetings
     .filter(
       (m) =>
         m.status !== 'cancelled' &&
         (m.organizerId === uid || (m.inviteeIds || []).includes(uid)),
     )
-    .filter((m) => {
-      const s = new Date(m.startTime);
-      return s >= dayStart && s <= dayEnd;
-    })
-    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+    .filter((m) => datePartOf(m.startTime) === date)
+    .sort((a, b) => parseDateTimeValue(a.startTime) - parseDateTimeValue(b.startTime))
     .map((m) => ({ startTime: m.startTime, endTime: m.endTime }));
 
   res.json({ user: publicUser(user), date, busySlots: busy });
@@ -454,15 +442,10 @@ app.get('/api/schedules/:userId', authMiddleware, asyncHandler(async (req, res) 
   );
 
   if (date) {
-    const dayStart = new Date(`${date}T00:00:00`);
-    const dayEnd = new Date(`${date}T23:59:59`);
-    schedule = schedule.filter((m) => {
-      const s = new Date(m.startTime);
-      return s >= dayStart && s <= dayEnd;
-    });
+    schedule = schedule.filter((m) => datePartOf(m.startTime) === date);
   }
 
-  schedule.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  schedule.sort((a, b) => parseDateTimeValue(a.startTime) - parseDateTimeValue(b.startTime));
   res.json({
     user: publicUser(user),
     meetings: await Promise.all(schedule.map(enrichMeeting)),

@@ -121,7 +121,7 @@ async function tryAutoLogin() {
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 
-function switchView(view) {
+async function switchView(view) {
   const mobileActive = ['members', 'rooms-admin'].includes(view) ? 'profile' : view;
   document.querySelectorAll('.nav-item').forEach((n) => {
     n.classList.toggle('active', n.dataset.view === view);
@@ -131,9 +131,10 @@ function switchView(view) {
   });
   document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
   document.getElementById(`view-${view}`).classList.remove('hidden');
+  document.querySelector('.main-content')?.classList.toggle('rooms-fullscreen', view === 'rooms');
   closeMobileSidebar();
 
-  if (view === 'rooms') loadRoomGrid();
+  if (view === 'rooms') await loadRoomGrid();
   if (view === 'my-calendar') loadMyCalendar();
   if (view === 'schedules') loadSchedule();
   if (view === 'profile') loadProfile();
@@ -167,8 +168,20 @@ function fmtDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+function parseDateTimeValue(value) {
+  if (!value) return new Date(NaN);
+  const core = String(value).trim().slice(0, 19);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(core)) {
+    const [datePart, timePart = '00:00:00'] = core.split('T');
+    const [y, mo, d] = datePart.split('-').map(Number);
+    const [h, mi, s = 0] = timePart.split(':').map(Number);
+    return new Date(y, mo - 1, d, h, mi, s);
+  }
+  return new Date(value);
+}
+
 function fmtTime(iso) {
-  const d = new Date(iso);
+  const d = parseDateTimeValue(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
@@ -181,8 +194,8 @@ function addDays(dateStr, n) {
 // ── Room grid & drag booking ────────────────────────────────────────────────
 
 function slotOverlapsMeeting(slotStart, slotEnd, meeting) {
-  const ms = new Date(meeting.startTime);
-  const me = new Date(meeting.endTime);
+  const ms = parseDateTimeValue(meeting.startTime);
+  const me = parseDateTimeValue(meeting.endTime);
   return ms < slotEnd && me > slotStart;
 }
 
@@ -367,7 +380,7 @@ async function submitQuickBook(e, force = false) {
     document.getElementById('book-modal-overlay').classList.add('hidden');
     quickBookDraft = null;
     alert('会议预约成功！');
-    loadRoomGrid();
+    await loadRoomGrid();
   } catch (err) {
     if (err.data?.requireConfirm) {
       const ok = confirm(`${err.message}\n\n部分成员在该时段已有其他会议，是否仍要创建？`);
@@ -388,7 +401,7 @@ async function submitQuickBook(e, force = false) {
         document.getElementById('book-modal-overlay').classList.add('hidden');
         quickBookDraft = null;
         alert('会议预约成功！');
-        loadRoomGrid();
+        await loadRoomGrid();
       }
       return;
     }
@@ -504,14 +517,79 @@ async function loadRoomGrid() {
   const date = document.getElementById('room-date').value || todayStr();
   document.getElementById('room-date').value = date;
 
-  const meetings = await api(`/meetings?date=${date}`);
   const grid = document.getElementById('room-grid');
+  const scrollLeft = grid.scrollLeft;
+  const meetings = await api(`/meetings?date=${encodeURIComponent(date)}&_=${Date.now()}`);
   grid.innerHTML = '';
 
   for (const room of rooms) {
-    const roomMeetings = meetings.filter((m) => m.roomId === room.id);
+    const roomMeetings = meetings.filter((m) => String(m.roomId) === String(room.id));
     grid.appendChild(buildRoomCard(room, roomMeetings, date));
   }
+
+  grid.scrollLeft = scrollLeft;
+  setupRoomPager();
+}
+
+function setupRoomPager() {
+  const grid = document.getElementById('room-grid');
+  const pager = document.getElementById('room-pager');
+  const cards = grid.querySelectorAll('.room-card');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+  if (!isMobile || cards.length <= 1) {
+    pager.classList.add('hidden');
+    pager.setAttribute('aria-hidden', 'true');
+    document.getElementById('room-carousel-prev')?.classList.add('hidden');
+    document.getElementById('room-carousel-next')?.classList.add('hidden');
+    return;
+  }
+
+  document.getElementById('room-carousel-prev')?.classList.remove('hidden');
+  document.getElementById('room-carousel-next')?.classList.remove('hidden');
+
+  pager.classList.remove('hidden');
+  pager.setAttribute('aria-hidden', 'false');
+  pager.innerHTML = `
+    ${[...cards].map((_, i) => `<span class="room-pager-dot${i === 0 ? ' active' : ''}" data-index="${i}"></span>`).join('')}
+    <span class="room-pager-label" id="room-pager-label">1 / ${cards.length}</span>`;
+
+  const scrollToRoom = (index) => {
+    const card = cards[index];
+    if (!card) return;
+    grid.scrollTo({ left: card.offsetLeft - grid.offsetLeft, behavior: 'smooth' });
+  };
+
+  const updatePager = () => {
+    const cardWidth = cards[0]?.offsetWidth || 1;
+    const index = Math.round(grid.scrollLeft / (cardWidth + 10));
+    const safeIndex = Math.max(0, Math.min(index, cards.length - 1));
+    pager.querySelectorAll('.room-pager-dot').forEach((dot, i) => {
+      dot.classList.toggle('active', i === safeIndex);
+    });
+    const label = document.getElementById('room-pager-label');
+    if (label) label.textContent = `${safeIndex + 1} / ${cards.length}`;
+  };
+
+  if (!grid.dataset.pagerBound) {
+    grid.dataset.pagerBound = '1';
+    grid.addEventListener('scroll', updatePager, { passive: true });
+    document.getElementById('room-carousel-prev')?.addEventListener('click', () => {
+      const cardWidth = cards[0]?.offsetWidth || 1;
+      const index = Math.max(0, Math.round(grid.scrollLeft / (cardWidth + 10)) - 1);
+      scrollToRoom(index);
+    });
+    document.getElementById('room-carousel-next')?.addEventListener('click', () => {
+      const cardWidth = cards[0]?.offsetWidth || 1;
+      const index = Math.min(cards.length - 1, Math.round(grid.scrollLeft / (cardWidth + 10)) + 1);
+      scrollToRoom(index);
+    });
+    pager.addEventListener('click', (e) => {
+      const dot = e.target.closest('.room-pager-dot');
+      if (dot) scrollToRoom(Number(dot.dataset.index));
+    });
+  }
+  updatePager();
 }
 
 function buildRoomCard(room, meetings, date) {
@@ -600,12 +678,12 @@ function getCalendarDays(year, month) {
 function groupMeetingsByDate(meetings) {
   const map = {};
   meetings.forEach((m) => {
-    const key = fmtDate(new Date(m.startTime));
+    const key = String(m.startTime).slice(0, 10);
     if (!map[key]) map[key] = [];
     map[key].push(m);
   });
   Object.values(map).forEach((list) => {
-    list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    list.sort((a, b) => parseDateTimeValue(a.startTime) - parseDateTimeValue(b.startTime));
   });
   return map;
 }

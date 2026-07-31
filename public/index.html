@@ -129,8 +129,13 @@
           <div class="lunch-notice">
             ⚠️ 12:30 - 14:00 为午休禁约时段（管理员可预约）
           </div>
-          <p class="room-drag-hint">💡 在空闲时段<strong>按住并滑动</strong>选择时长（手机竖滑、电脑拖动），松开后填写信息</p>
-          <div id="room-grid" class="room-grid"></div>
+          <p class="room-drag-hint">💡 空闲时段<strong>按住滑动</strong>选时长；<strong>左右滑动</strong>切换会议室</p>
+          <div class="room-carousel-wrap">
+            <button type="button" id="room-carousel-prev" class="room-carousel-btn room-carousel-prev hidden" aria-label="上一个会议室">‹</button>
+            <div id="room-grid" class="room-grid"></div>
+            <button type="button" id="room-carousel-next" class="room-carousel-btn room-carousel-next hidden" aria-label="下一个会议室">›</button>
+            <div id="room-pager" class="room-pager hidden" aria-hidden="true"></div>
+          </div>
         </section>
 
         <!-- 我的日程 -->
