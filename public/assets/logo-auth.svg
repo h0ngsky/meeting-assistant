@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 336 52" fill="none" role="img" aria-label="Meeting Assistance">
+  <defs>
+    <linearGradient id="micGradAuth" x1="24" y1="13" x2="24" y2="34" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D4EBFF"/>
+      <stop offset="55%" stop-color="#A8D4F5"/>
+      <stop offset="100%" stop-color="#7EB8E8"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(2, 5)">
+    <path d="M7 5h34a6 6 0 0 1 6 6v15a6 6 0 0 1-6 6H21l-8 11v-11H7a6 6 0 0 1-6-6V11a6 6 0 0 1 6-6z" fill="#FFFFFF" stroke="#D4EBFF" stroke-width="2.2" stroke-linejoin="round"/>
+    <rect x="19" y="12" width="10" height="15" rx="5" fill="url(#micGradAuth)"/>
+    <path d="M15 25a9 9 0 0 0 18 0" stroke="url(#micGradAuth)" stroke-width="2" stroke-linecap="round"/>
+    <path d="M24 29v5M19.5 34h9" stroke="#D4EBFF" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <text x="56" y="33" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif" font-size="21" font-weight="600" letter-spacing="-0.012em" fill="#FFFFFF">Meeting Assistance</text>
+</svg>

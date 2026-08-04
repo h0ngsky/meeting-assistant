@@ -122,6 +122,17 @@ async function tryAutoLogin() {
 
 async function switchView(view) {
   const mobileActive = ['members', 'rooms-admin'].includes(view) ? 'profile' : view;
+  const VIEW_TITLES = {
+    rooms: '会议室预约',
+    'my-calendar': '我的日程',
+    schedules: '成员日程',
+    profile: '个人设置',
+    members: '成员管理',
+    'rooms-admin': '会议室管理',
+  };
+  const titleEl = document.getElementById('topbar-view-title');
+  if (titleEl) titleEl.textContent = VIEW_TITLES[view] || 'Meeting Assistance';
+
   document.querySelectorAll('.nav-item').forEach((n) => {
     n.classList.toggle('active', n.dataset.view === view);
   });
